@@ -23,6 +23,25 @@ def init(profile: ProfileOpt = "default") -> None:
     typer.echo(f"initialized profile '{profile}' at {path}")
 
 
+@app.command()
+def extract(
+    history: Annotated[Path, typer.Argument(help="chat history JSONL", exists=True)],
+    profile: ProfileOpt = "default",
+) -> None:
+    """Extract a MemPack from chat history and commit it to the profile."""
+    import logging
+
+    from cortical_transfer.adapters.base import get_adapter
+    from cortical_transfer.extract.pipeline import extract as run_extract
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    adapter = get_adapter()
+    pack = run_extract(history, adapter)
+    sha = store.commit_pack(pack, profile, f"feat: extract from {history.name}")
+    n = len(pack.all_nodes())
+    typer.echo(f"extracted {n} nodes -> commit {sha[:8]}")
+
+
 def _print_nodes(title: str, nodes: list[SemanticNode]) -> None:
     typer.echo(f"\n== {title} ({len(nodes)}) ==")
     for n in sorted(nodes, key=lambda n: -n.salience):
