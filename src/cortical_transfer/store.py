@@ -99,6 +99,53 @@ def _show(repo: Repo, rev: str, path: str) -> str | None:
         return None
 
 
+def export_pack(profile: str, dest: Path) -> Path:
+    """Zip the profile's MemPack (worktree minus .git and derived caches) to `dest`."""
+    import zipfile
+
+    repo = open_profile(profile)
+    root = Path(repo.working_dir)
+    dest = dest.with_suffix(".mempack") if dest.suffix != ".mempack" else dest
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(root.rglob("*")):
+            rel = f.relative_to(root)
+            if f.is_file() and rel.parts[0] not in (".git", ".rag"):
+                z.write(f, rel.as_posix())
+    return dest
+
+
+def import_pack(src: Path, profile: str, force: bool = False) -> str:
+    """Import a .mempack zip or pack directory into `profile` (created if missing).
+
+    Verifies integrity (SPEC §5) unless force=True; sanitizes all text on import.
+    Returns the commit sha.
+    """
+    import shutil
+    import tempfile
+    import zipfile
+
+    from cortical_transfer.integrity import IntegrityError, load_pack, verify_pack
+    from cortical_transfer.sanitize import sanitize_pack
+
+    with tempfile.TemporaryDirectory() as tmp:
+        if src.is_file():
+            with zipfile.ZipFile(src) as z:
+                z.extractall(tmp)
+            pack_dir = Path(tmp)
+        else:
+            pack_dir = src
+        errors = verify_pack(pack_dir)
+        if errors and not force:
+            raise IntegrityError(f"pack does not verify (use --force to override): {errors}")
+        pack = sanitize_pack(load_pack(pack_dir, verify=False))
+        if not (profile_path(profile) / ".git").exists():
+            init_profile(profile)
+        dest = profile_path(profile)
+        if (pack_dir / "raw").is_dir():
+            shutil.copytree(pack_dir / "raw", dest / "raw", dirs_exist_ok=True)
+        return commit_pack(pack, profile, f"feat: import pack from {src.name}")
+
+
 def checkout(profile: str, rev: str) -> str:
     """Restore the memory state of `rev` as a NEW commit (history is never lost)."""
     repo = open_profile(profile)

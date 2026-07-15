@@ -115,5 +115,43 @@ def verify(
     typer.echo(f"ok — {target} verifies")
 
 
+@app.command()
+def export(
+    dest: Annotated[Path, typer.Argument(help="output .mempack file")],
+    profile: ProfileOpt = "default",
+) -> None:
+    """Export the profile as a portable .mempack file."""
+    typer.echo(f"exported {store.export_pack(profile, dest)}")
+
+
+@app.command(name="import")
+def import_(
+    src: Annotated[Path, typer.Argument(help=".mempack file or pack directory", exists=True)],
+    profile: ProfileOpt = "default",
+    force: Annotated[bool, typer.Option(help="import even if integrity check fails")] = False,
+) -> None:
+    """Import a MemPack into a profile (verified + sanitized)."""
+    from cortical_transfer.integrity import IntegrityError
+
+    try:
+        sha = store.import_pack(src, profile, force=force)
+    except IntegrityError as e:
+        typer.echo(f"FAIL {e}", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(f"imported into '{profile}' as commit {sha[:8]}")
+
+
+mcp_app = typer.Typer(no_args_is_help=True)
+app.add_typer(mcp_app, name="mcp", help="MCP server commands")
+
+
+@mcp_app.command()
+def serve() -> None:
+    """Run the MCP server on stdio."""
+    from cortical_transfer.mcp_server import serve as run_serve
+
+    run_serve()
+
+
 if __name__ == "__main__":
     app()
