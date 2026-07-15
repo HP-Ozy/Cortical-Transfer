@@ -45,6 +45,12 @@ strict = true
 mypy_path = "src"
 packages = ["cortical_transfer"]
 
+[[tool.mypy.overrides]]
+# chromadb is an optional extra; keep mypy green with or without it installed
+module = "chromadb.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

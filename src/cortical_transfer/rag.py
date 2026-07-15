@@ -15,7 +15,7 @@ INDEX_DIR = ".rag"
 
 def _collection(pack_path: Path, embedding_function: Any = None) -> Any:
     try:
-        import chromadb  # type: ignore[import-not-found]
+        import chromadb
     except ImportError as e:  # pragma: no cover
         raise ImportError(
             "RAG requires the optional extra: pip install cortical-transfer[rag]"

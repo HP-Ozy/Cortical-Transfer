@@ -116,6 +116,22 @@ def verify(
 
 
 @app.command()
+def redact(
+    node_id: Annotated[str, typer.Argument(help="ULID of the node to erase")],
+    profile: ProfileOpt = "default",
+) -> None:
+    """Permanently erase a node from memory AND Git history (right to erasure)."""
+    from cortical_transfer.redact import redact as run_redact
+
+    try:
+        sha = run_redact(profile, node_id)
+    except KeyError:
+        typer.echo(f"no node with id {node_id}", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(f"redacted {node_id}; history squashed at {sha[:8]}")
+
+
+@app.command()
 def export(
     dest: Annotated[Path, typer.Argument(help="output .mempack file")],
     profile: ProfileOpt = "default",
