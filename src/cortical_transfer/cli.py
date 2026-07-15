@@ -88,6 +88,19 @@ def checkout(rev: str, profile: ProfileOpt = "default") -> None:
 
 
 @app.command()
+def inject(
+    budget: Annotated[int, typer.Option(help="token budget for the context block")] = 2000,
+    query: Annotated[str | None, typer.Option(help="topic for RAG retrieval (optional)")] = None,
+    profile: ProfileOpt = "default",
+) -> None:
+    """Print a portable, token-budgeted context block to stdout."""
+    from cortical_transfer.inject import build_context
+
+    path = store.profile_path(profile)
+    typer.echo(build_context(load_pack(path), budget_tokens=budget, query=query, pack_path=path))
+
+
+@app.command()
 def verify(
     path: Annotated[Path | None, typer.Argument(help="pack dir (default: profile)")] = None,
     profile: ProfileOpt = "default",
