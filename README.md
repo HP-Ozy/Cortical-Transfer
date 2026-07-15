@@ -1,7 +1,7 @@
 #  Cortical-Transfer
 
 
-![Uploading 73b94ed0-2a95-456f-aa63-25df1666cabb.png…]()
+<img width="1402" height="1122" alt="73b94ed0-2a95-456f-aa63-25df1666cabb" src="https://github.com/user-attachments/assets/ad3082d9-acec-491b-b0eb-31aa6e943b60" />
 
 
 > **Transport your AI identity, not just your prompts.**
@@ -60,4 +60,3 @@ Not the model.
 
 ---
 
-<img width="1402" height="1122" alt="73b94ed0-2a95-456f-aa63-25df1666cabb" src="https://github.com/user-attachments/assets/ad3082d9-acec-491b-b0eb-31aa6e943b60" />
