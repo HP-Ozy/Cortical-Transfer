@@ -24,6 +24,13 @@ def profile_path(profile: str = "default") -> Path:
     return root_dir() / profile
 
 
+def list_profiles() -> list[str]:
+    root = root_dir()
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if (p / ".git").exists())
+
+
 def init_profile(profile: str = "default") -> Path:
     path = profile_path(profile)
     if (path / ".git").exists():

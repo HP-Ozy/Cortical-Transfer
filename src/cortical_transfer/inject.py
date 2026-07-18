@@ -56,3 +56,30 @@ def build_context(pack: MemPack, budget_tokens: int = 2000) -> str:
     out = "".join(parts)
     log.info("built context: ~%d tokens (budget %d)", estimate_tokens(out), budget_tokens)
     return out
+
+
+def merge_packs(packs: list[MemPack]) -> MemPack:
+    """Union of packs, deduplicated by node text (cross-model memories overlap)."""
+    merged = MemPack()
+    seen: set[str] = set()
+    for pack in packs:
+        for field in ("identity", "episodes", "threads"):
+            for node in getattr(pack, field):
+                if node.text not in seen:
+                    seen.add(node.text)
+                    getattr(merged, field).append(node)
+    styles = [p.style.strip() for p in packs if p.style.strip()]
+    merged.style = "\n".join(dict.fromkeys(styles))
+    return merged
+
+
+def enrich(prompt: str, profiles: list[str] | None = None, budget_tokens: int = 2000) -> str:
+    """Prepend the merged memory of `profiles` (default: ALL local profiles) to `prompt`."""
+    from cortical_transfer import store
+    from cortical_transfer.integrity import load_pack
+
+    names = profiles if profiles is not None else store.list_profiles()
+    packs = [load_pack(store.profile_path(n)) for n in names]
+    if not packs:
+        return prompt
+    return build_context(merge_packs(packs), budget_tokens) + "\n\n" + prompt
