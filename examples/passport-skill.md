@@ -13,6 +13,10 @@ receiving model. The file **is** the protocol. MemPack (see
 [SPEC.md](../SPEC.md)) is this same mechanism made rigorous: versioned schema,
 integrity manifest, Git history, token budgeting, prompt-boundary sanitizing.
 
+A host-neutral edition of this same skill — installable in ChatGPT, Google
+Antigravity, Gemini, Cursor, Windsurf, Copilot, or pasted as a message into
+any chat model — is in [passport-universal.md](passport-universal.md).
+
 The skill, verbatim:
 
 ---

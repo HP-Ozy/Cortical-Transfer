@@ -66,6 +66,11 @@ The smallest working proof of this idea is a single markdown file:
 that exports a live session (plus long-term, cross-session memory) as a
 `PASSPORT.md` you paste as the first message into any other model, which then
 resumes the work knowing who you are, what you asked, and where things stand.
+The skill itself is portable too:
+[`examples/passport-universal.md`](examples/passport-universal.md) is the
+host-neutral version, with install locations for Claude, ChatGPT, Google
+Antigravity, Gemini, Cursor, Windsurf, Copilot — or pasted as a plain message
+into DeepSeek, Qwen, or any chat model.
 Cortical-Transfer is that same mechanism made rigorous: a versioned schema
 instead of freeform prose, integrity checks, Git history, token budgeting,
 and a prompt-boundary sanitizer.
