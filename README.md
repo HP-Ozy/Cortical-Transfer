@@ -79,6 +79,8 @@ uv sync                          # or: pip install -e .
 
 ct init                                      # create a Git-versioned memory profile
 ct extract examples/sample_history.jsonl     # chat history -> MemPack, committed
+# or feed it your real history: the conversations.json from a ChatGPT or
+# Claude data export works as-is — ct extract conversations.json
 ct inspect                                   # pretty-print your memory
 ct inject --budget 2000 > context.txt        # portable context block for ANY model
 ct verify                                    # SHA-256 integrity check
@@ -100,7 +102,8 @@ Other commands: `ct log`, `ct diff <rev> <rev>`, `ct checkout <rev>`,
 **Today (v0.1)** is deliberately *text-based portability*:
 
 - Extracts identity facts, salient episodes, open threads, and an interaction
-  style card from chat-history JSONL, using a local LLM by default.
+  style card from chat history — native JSONL or the `conversations.json`
+  from a ChatGPT/Claude data export — using a local LLM by default.
 - Stores them as a Git repo: every update is a commit, `ct diff` shows memory
   changes semantically, `ct checkout` restores any previous state.
 - Injects them as a token-budgeted, clearly-delimited context block.

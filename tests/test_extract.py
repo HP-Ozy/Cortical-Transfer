@@ -69,6 +69,76 @@ def test_iter_conversations_streams_groups(tmp_path: Path) -> None:
     assert all(len(turns) == 2 for _, turns in convs)
 
 
+def test_iter_conversations_chatgpt_export(tmp_path: Path) -> None:
+    # active branch: root -> u1 -> a1; a0 is an abandoned edit, sys/empty skipped
+    conv = {
+        "id": "c1",
+        "current_node": "a1",
+        "mapping": {
+            "root": {"message": None, "parent": None},
+            "sys": {
+                "message": {
+                    "id": "m0",
+                    "author": {"role": "system"},
+                    "content": {"parts": ["you are helpful"]},
+                },
+                "parent": "root",
+            },
+            "u1": {
+                "message": {
+                    "id": "m1",
+                    "author": {"role": "user"},
+                    "content": {"parts": ["hello", {"image": "stub"}]},
+                    "create_time": 1721000000.0,
+                },
+                "parent": "sys",
+            },
+            "a0": {
+                "message": {
+                    "id": "m2-old",
+                    "author": {"role": "assistant"},
+                    "content": {"parts": ["abandoned branch"]},
+                },
+                "parent": "u1",
+            },
+            "a1": {
+                "message": {
+                    "id": "m2",
+                    "author": {"role": "assistant"},
+                    "content": {"parts": ["hi there"]},
+                },
+                "parent": "u1",
+            },
+        },
+    }
+    f = tmp_path / "conversations.json"
+    f.write_text(json.dumps([conv]), encoding="utf-8")
+    convs = list(iter_conversations(f))
+    assert len(convs) == 1
+    conv_id, turns = convs[0]
+    assert conv_id == "c1"
+    assert [(t.role, t.content) for t in turns] == [("user", "hello"), ("assistant", "hi there")]
+    assert turns[0].turn_id == "m1" and turns[0].timestamp == "1721000000.0"
+
+
+def test_iter_conversations_claude_export(tmp_path: Path) -> None:
+    conv = {
+        "uuid": "abc",
+        "chat_messages": [
+            {"uuid": "t1", "sender": "human", "text": "ciao", "created_at": "2026-01-01"},
+            {"uuid": "t2", "sender": "assistant", "text": "ciao!"},
+            {"uuid": "t3", "sender": "human", "text": "   "},
+        ],
+    }
+    f = tmp_path / "conversations.json"
+    f.write_text(json.dumps([conv, {"uuid": "empty", "chat_messages": []}]), encoding="utf-8")
+    convs = list(iter_conversations(f))
+    assert len(convs) == 1  # empty conversation not yielded
+    conv_id, turns = convs[0]
+    assert conv_id == "abc"
+    assert [(t.role, t.content) for t in turns] == [("user", "ciao"), ("assistant", "ciao!")]
+
+
 def test_parse_json_tolerates_fences_and_prose() -> None:
     assert parse_json('```json\n{"a": 1}\n```') == {"a": 1}
     assert parse_json('Here you go: {"a": [1, 2]}') == {"a": [1, 2]}

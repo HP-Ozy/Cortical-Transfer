@@ -25,7 +25,13 @@ def init(profile: ProfileOpt = "default") -> None:
 
 @app.command()
 def extract(
-    history: Annotated[Path, typer.Argument(help="chat history JSONL", exists=True)],
+    history: Annotated[
+        Path,
+        typer.Argument(
+            help="chat history: JSONL, or a ChatGPT/Claude conversations.json export",
+            exists=True,
+        ),
+    ],
     profile: ProfileOpt = "default",
 ) -> None:
     """Extract a MemPack from chat history and commit it to the profile."""

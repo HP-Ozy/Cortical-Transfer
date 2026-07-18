@@ -29,16 +29,81 @@ class Turn(BaseModel):
 
 
 def iter_conversations(path: Path) -> Iterator[tuple[str, list[Turn]]]:
-    """Stream conversations from JSONL, one at a time (contiguous conversation_id runs)."""
+    """Stream conversations, one at a time.
 
-    def turns() -> Iterator[Turn]:
+    Accepts native JSONL (contiguous conversation_id runs) or a real-world
+    `conversations.json` export from ChatGPT or Claude, auto-detected per
+    conversation object.
+    """
+    if path.suffix == ".json":
+        for i, conv in enumerate(json.loads(path.read_text(encoding="utf-8"))):
+            turns = _chatgpt_turns(conv, i) if "mapping" in conv else _claude_turns(conv, i)
+            if turns:
+                yield turns[0].conversation_id, turns
+        return
+
+    def turns_() -> Iterator[Turn]:
         with path.open(encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     yield Turn.model_validate_json(line)
 
-    for conv_id, group in groupby(turns(), key=lambda t: t.conversation_id):
+    for conv_id, group in groupby(turns_(), key=lambda t: t.conversation_id):
         yield conv_id, list(group)
+
+
+def _chatgpt_turns(conv: dict[str, Any], idx: int) -> list[Turn]:
+    """One conversation from a ChatGPT export: walk the active branch
+    (current_node -> parents), keep non-empty user/assistant text parts."""
+    conv_id = str(conv.get("id") or conv.get("conversation_id") or f"chatgpt-{idx}")
+    mapping = conv.get("mapping") or {}
+    chain: list[dict[str, Any]] = []
+    node_id = conv.get("current_node")
+    while node_id:
+        node = mapping.get(node_id) or {}
+        if node.get("message"):
+            chain.append(node["message"])
+        node_id = node.get("parent")
+    turns: list[Turn] = []
+    for msg in reversed(chain):
+        role = (msg.get("author") or {}).get("role")
+        parts = (msg.get("content") or {}).get("parts") or []
+        text = "\n".join(p for p in parts if isinstance(p, str) and p.strip())
+        if role not in ("user", "assistant") or not text:
+            continue  # system/tool noise, multimodal stubs, empty roots
+        ts = msg.get("create_time")
+        turns.append(
+            Turn(
+                role=role,
+                content=text,
+                timestamp=str(ts) if ts else None,
+                conversation_id=conv_id,
+                turn_id=str(msg.get("id") or f"{conv_id}:{len(turns)}"),
+            )
+        )
+    return turns
+
+
+def _claude_turns(conv: dict[str, Any], idx: int) -> list[Turn]:
+    """One conversation from a Claude (claude.ai) export."""
+    conv_id = str(conv.get("uuid") or f"claude-{idx}")
+    roles = {"human": "user", "assistant": "assistant"}
+    turns: list[Turn] = []
+    for m in conv.get("chat_messages") or []:
+        role = roles.get(m.get("sender", ""))
+        text = (m.get("text") or "").strip()
+        if not role or not text:
+            continue
+        turns.append(
+            Turn(
+                role=role,
+                content=text,
+                timestamp=m.get("created_at"),
+                conversation_id=conv_id,
+                turn_id=str(m.get("uuid") or f"{conv_id}:{len(turns)}"),
+            )
+        )
+    return turns
 
 
 def parse_json(text: str) -> Any:
