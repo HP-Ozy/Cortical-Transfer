@@ -1,10 +1,14 @@
-<p align="center">
-  <img src="docs/logo.webp" alt="Cortical-Transfer logo" width="160">
-</p>
-
-# Cortical-Transfer
-
-> **Transport your AI identity, not just your prompts.**
+<table>
+<tr>
+<td width="150"><img src="docs/logo.webp" alt="Cortical-Transfer logo" width="130"></td>
+<td>
+<h1>cortical-transfer</h1>
+<em>transport your AI identity, not just your prompts</em>
+<br><br>
+<sub>MemPack format &nbsp;·&nbsp; extract → inject → eval &nbsp;·&nbsp; local-first &nbsp;·&nbsp; Apache-2.0</sub>
+</td>
+</tr>
+</table>
 
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![version](https://img.shields.io/badge/version-0.1.0-blue)
 
