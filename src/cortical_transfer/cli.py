@@ -106,6 +106,32 @@ def inject(
     typer.echo(build_context(load_pack(path), budget_tokens=budget, query=query, pack_path=path))
 
 
+@app.command(name="eval")
+def eval_(
+    questions: Annotated[
+        Path,
+        typer.Argument(help="JSON question set (see examples/eval_questions.json)", exists=True),
+    ],
+    budget: Annotated[int, typer.Option(help="token budget for the injected context")] = 2000,
+    verbose: Annotated[bool, typer.Option(help="print answers for passing questions too")] = False,
+    profile: ProfileOpt = "default",
+) -> None:
+    """Measure transfer fidelity: quiz the adapter model on the injected memory."""
+    from cortical_transfer.adapters.base import get_adapter
+    from cortical_transfer.eval import load_questions, run_eval
+
+    adapter = get_adapter()
+    results = run_eval(
+        load_pack(store.profile_path(profile)), load_questions(questions), adapter, budget
+    )
+    for r in results:
+        typer.echo(f"{'PASS' if r['passed'] else 'FAIL'}  {r['question']}")
+        if verbose or not r["passed"]:
+            typer.echo(f"      -> {r['answer'][:200].strip()}")
+    n = sum(r["passed"] for r in results)
+    typer.echo(f"\nrecall {n}/{len(results)} ({100 * n // len(results)}%) @ budget {budget}")
+
+
 @app.command()
 def verify(
     path: Annotated[Path | None, typer.Argument(help="pack dir (default: profile)")] = None,

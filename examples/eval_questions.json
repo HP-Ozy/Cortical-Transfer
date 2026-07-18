@@ -1,0 +1,16 @@
+[
+  {"question": "What is the user's first name?", "expected": ["dana"]},
+  {"question": "What is the user's job?", "expected": ["data engineer"]},
+  {"question": "In which city does the user work?", "expected": ["turin", "torino"]},
+  {"question": "Which pipeline orchestrator did the user choose?", "expected": ["prefect"]},
+  {"question": "Which dataframe library is the user's standard now?", "expected": ["polars"]},
+  {"question": "Which Python tooling is the team standard (pip is banned)?", "expected": ["uv"]},
+  {"question": "Which programming language is the user learning on weekends?", "expected": ["rust"]},
+  {"question": "What is the name of the user's open-source CLI project?", "expected": ["csvprof"]},
+  {"question": "Where are old shipment_events partitions archived?", "expected": ["b2", "backblaze"]},
+  {"question": "Which open item still needs review by legal?", "expected": ["retention", "gdpr"]},
+  {"question": "Which proposal is parked until July, pending Q2 numbers?", "expected": ["4-day", "four-day", "4 day", "four day"]},
+  {"question": "How does the user sign their projects?", "expected": ["espresso"]},
+  {"question": "In which language does the user prefer answers?", "expected": ["english"]},
+  {"question": "What does the user want to try as a query layer over the parquet archive?", "expected": ["duckdb"]}
+]

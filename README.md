@@ -98,7 +98,7 @@ system prompt — GPT, Claude, Gemini, a local model, anything. That's the
 transfer.
 
 Other commands: `ct log`, `ct diff <rev> <rev>`, `ct checkout <rev>`,
-`ct redact <node-id>`, `ct mcp serve`. Adapter selection: `CT_ADAPTER=ollama`
+`ct redact <node-id>`, `ct eval <questions.json>`, `ct mcp serve`. Adapter selection: `CT_ADAPTER=ollama`
 (default) or `CT_ADAPTER=openai` + `CT_BASE_URL`/`CT_API_KEY`/`CT_MODEL`
 (works with any OpenAI-compatible endpoint).
 
@@ -122,6 +122,40 @@ latent-space projectors, fine-tuning, any cloud service, any UI. The vision —
 richer transfer mechanisms as models expose better interfaces — sits on top of
 the same format. The format is the bet; today's injection is just its first
 consumer.
+
+## Measured transfer fidelity
+
+"Your memory follows you" is a claim; this is the measurement. `ct eval` runs
+the whole pipeline end to end — extract → inject → quiz the *receiving* model
+on facts whose ground truth is in the memory — and prints one number:
+
+```
+recall 14/14 (100%) @ budget 2000
+```
+
+Results on [`examples/sample_history.jsonl`](examples/sample_history.jsonl)
+(10 conversations) against
+[`examples/eval_questions.json`](examples/eval_questions.json)
+(14 curated questions; deterministic expected-substring judge, temperature 0;
+extraction done once with qwen3-coder:30b):
+
+| Receiving model | recall @ 500 tokens | recall @ 2000 tokens |
+|---|---|---|
+| qwen3-coder:30b (local, Ollama) | 13/14 (92%) | **14/14 (100%)** |
+| qwen3:4b (local, Ollama) | 12/14 (85%) | 13/14 (92%) |
+
+Two things these numbers show honestly: fidelity degrades gracefully with
+budget (at 500 tokens the lowest-salience facts are cut and the model falls
+back to a superseded one — "pandas" instead of "polars"), and even a 4B model
+recalls most of a stranger's history from a single pasted block. Reproduce:
+
+```bash
+CT_MODEL=qwen3-coder:30b ct extract examples/sample_history.jsonl
+ct eval examples/eval_questions.json --budget 2000
+```
+
+Every change to `extract` or `inject` that drops recall is a regression you
+see immediately — this table doubles as the project's regression test.
 
 ## The MemPack format
 
