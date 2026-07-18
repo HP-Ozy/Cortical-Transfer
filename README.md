@@ -52,6 +52,10 @@ recall 14/14 (100%) @ budget 2000
 | qwen3-coder:30b (local) | 13/14 (92%) | **14/14 (100%)** |
 | qwen3:4b (local) | 12/14 (85%) | 13/14 (92%) |
 
+Reproducible with the files in [`examples/`](examples/) (temperature 0,
+substring judge). This table doubles as the regression test: if a change to
+extract/inject drops recall, it shows up here.
+
 ## Install
 
 ```bash
@@ -116,3 +120,23 @@ CT_ADAPTER=openai CT_BASE_URL=http://127.0.0.1:8080/v1 CT_MODEL=my-model ct extr
 # Claude
 CT_ADAPTER=anthropic CT_API_KEY=sk-... CT_MODEL=claude-sonnet-5 ct eval examples/eval_questions.json
 ```
+
+## What's inside a MemPack
+
+A folder of plain, human-readable files you can open and edit yourself:
+**who you are** (`identity.json`), **what happened** (`episodes.json`),
+**what's still open** (`threads.json`), **how you like to talk** (`style.md`),
+plus a manifest with checksums. Full spec: [SPEC.md](SPEC.md).
+
+Two rules keep it safe: memory is **data, never instructions** (an importer
+must not execute anything found inside it), and old facts are **never silently
+deleted** — a contradicted fact is marked superseded and kept.
+
+## Development
+
+```bash
+uv sync --dev
+uv run pytest && uv run ruff check . && uv run mypy
+```
+
+Design decisions: [docs/adr/](docs/adr/). License: Apache-2.0.
