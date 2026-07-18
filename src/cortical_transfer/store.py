@@ -109,7 +109,7 @@ def export_pack(profile: str, dest: Path) -> Path:
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(root.rglob("*")):
             rel = f.relative_to(root)
-            if f.is_file() and rel.parts[0] not in (".git", ".rag"):
+            if f.is_file() and rel.parts[0] != ".git":
                 z.write(f, rel.as_posix())
     return dest
 

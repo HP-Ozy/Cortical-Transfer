@@ -96,14 +96,12 @@ def checkout(rev: str, profile: ProfileOpt = "default") -> None:
 @app.command()
 def inject(
     budget: Annotated[int, typer.Option(help="token budget for the context block")] = 2000,
-    query: Annotated[str | None, typer.Option(help="topic for RAG retrieval (optional)")] = None,
     profile: ProfileOpt = "default",
 ) -> None:
     """Print a portable, token-budgeted context block to stdout."""
     from cortical_transfer.inject import build_context
 
-    path = store.profile_path(profile)
-    typer.echo(build_context(load_pack(path), budget_tokens=budget, query=query, pack_path=path))
+    typer.echo(build_context(load_pack(store.profile_path(profile)), budget_tokens=budget))
 
 
 @app.command(name="eval")
@@ -187,18 +185,6 @@ def import_(
         typer.echo(f"FAIL {e}", err=True)
         raise typer.Exit(1) from None
     typer.echo(f"imported into '{profile}' as commit {sha[:8]}")
-
-
-mcp_app = typer.Typer(no_args_is_help=True)
-app.add_typer(mcp_app, name="mcp", help="MCP server commands")
-
-
-@mcp_app.command()
-def serve() -> None:
-    """Run the MCP server on stdio."""
-    from cortical_transfer.mcp_server import serve as run_serve
-
-    run_serve()
 
 
 if __name__ == "__main__":

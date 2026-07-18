@@ -2,7 +2,7 @@
 
 Mechanism (documented limits — see ADR 0006):
 - the node is deleted from its part file, references to it are nulled,
-  raw turns it came from are deleted, the derived .rag index is dropped;
+  raw turns it came from are deleted;
 - Git history is squashed to a single redacted baseline commit, reflogs are
   expired and objects pruned, so the old content is unrecoverable IN THIS
   STORE. Copies already exported or cloned elsewhere are out of reach.
@@ -11,7 +11,6 @@ Mechanism (documented limits — see ADR 0006):
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 from cortical_transfer.integrity import load_pack, save_pack
@@ -63,7 +62,6 @@ def redact(profile: str, node_id: str) -> str:
     pack = load_pack(pack_dir)
     refs = remove_node(pack, node_id)
     _purge_raw(pack_dir, refs)
-    shutil.rmtree(pack_dir / ".rag", ignore_errors=True)  # derived index may hold the text
     save_pack(pack, pack_dir)
 
     # squash: new orphan branch becomes the only history, old objects pruned

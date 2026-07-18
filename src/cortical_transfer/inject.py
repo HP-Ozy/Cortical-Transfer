@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from cortical_transfer.sanitize import sanitize_text
 from cortical_transfer.schema import MemPack, SemanticNode
@@ -30,28 +29,14 @@ def _live(nodes: list[SemanticNode]) -> list[SemanticNode]:
     return sorted((n for n in nodes if not n.superseded_by), key=lambda n: -n.salience)
 
 
-def build_context(
-    pack: MemPack,
-    budget_tokens: int = 2000,
-    query: str | None = None,
-    pack_path: Path | None = None,
-) -> str:
-    """Priority under budget: identity > style > open threads > top-salience episodes;
-    then RAG chunks if a query is given and the extra is installed."""
+def build_context(pack: MemPack, budget_tokens: int = 2000) -> str:
+    """Priority under budget: identity > style > open threads > top-salience episodes."""
     sections: list[tuple[str, list[str]]] = [
         ("Identity", [n.text for n in _live(pack.identity)]),
         ("Interaction style", [pack.style.strip()] if pack.style.strip() else []),
         ("Open threads", [n.text for n in _live(pack.threads)]),
         ("Notable episodes", [n.text for n in _live(pack.episodes)]),
     ]
-    if query and pack_path:
-        try:
-            from cortical_transfer.rag import search_raw
-
-            sections.append(("Possibly relevant history", search_raw(pack_path, query)))
-        except ImportError:
-            log.info("query given but the [rag] extra is not installed; skipping retrieval")
-
     parts = [PREAMBLE]
     used = estimate_tokens(PREAMBLE) + estimate_tokens(CLOSING)
     for title, items in sections:

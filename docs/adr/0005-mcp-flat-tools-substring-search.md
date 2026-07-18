@@ -1,6 +1,8 @@
 # ADR 0005 — MCP: FastMCP over stdio, plain-function tools, substring search in core
 
-Status: accepted. Date: 2026-07-15.
+Status: superseded 2026-07-18 — MCP server and [rag] extra removed from core
+to keep the project narrow (format + extract + inject + eval). Revive as a
+separate package if demand shows up. Date: 2026-07-15.
 
 - Official `mcp` SDK's FastMCP with the six spec'd tools; stdio transport only
   (local-first, every MCP client supports it). No HTTP/SSE in v0.1.
