@@ -52,18 +52,6 @@ recall 14/14 (100%) @ budget 2000
 | qwen3-coder:30b (local) | 13/14 (92%) | **14/14 (100%)** |
 | qwen3:4b (local) | 12/14 (85%) | 13/14 (92%) |
 
-Setup: [`examples/sample_history.jsonl`](examples/sample_history.jsonl) (10
-conversations) against
-[`examples/eval_questions.json`](examples/eval_questions.json), deterministic
-expected-substring judge, temperature 0, extraction with qwen3-coder:30b.
-
-Two honest observations: fidelity degrades gracefully with budget (at 500
-tokens the lowest-salience facts are cut and the model falls back to a
-superseded one — "pandas" instead of "polars"), and even a 4B model recalls
-most of a stranger's history from a single pasted block. Any change to
-extract/inject that drops recall is a visible regression — this table is also
-the project's regression test.
-
 ## Install
 
 ```bash
@@ -128,33 +116,3 @@ CT_ADAPTER=openai CT_BASE_URL=http://127.0.0.1:8080/v1 CT_MODEL=my-model ct extr
 # Claude
 CT_ADAPTER=anthropic CT_API_KEY=sk-... CT_MODEL=claude-sonnet-5 ct eval examples/eval_questions.json
 ```
-
-## The MemPack format
-
-A MemPack is one directory (or a zipped `.mempack`) of human-readable files:
-
-| File | Content |
-|---|---|
-| `mempack.json` | manifest: version, timestamps, SHA-256 of every file |
-| `identity.json` | stable facts about you |
-| `episodes.json` | salient events and decisions, salience-scored |
-| `threads.json` | open/unresolved topics |
-| `style.md` | how you like to interact |
-| `raw/` | *(optional)* original history chunks for provenance |
-
-Security model: memory is **data, not instructions**. Importers must never
-execute what's inside a node; this implementation neutralizes instruction-like
-payloads at the prompt boundary. Contradictions are never silently deleted —
-the older fact is marked superseded and kept.
-
-The format is the product; this library is its first consumer. Full spec,
-written so you can build an importer in any language: **[SPEC.md](SPEC.md)**.
-
-## Development
-
-```bash
-uv sync --dev
-uv run pytest && uv run ruff check . && uv run mypy
-```
-
-Design decisions live in [docs/adr/](docs/adr/). License: Apache-2.0.
