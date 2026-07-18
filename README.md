@@ -2,6 +2,11 @@
 
 > **Transport your AI identity, not just your prompts.**
 
+![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![version](https://img.shields.io/badge/version-0.1.0-blue)
+
+> ⚠️ **v0.1 — early development.** The MemPack format may change before 1.0;
+> expect breaking changes between minor versions.
+
 <img width="1402" height="1122" alt="Cortical-Transfer" src="https://github.com/user-attachments/assets/ad3082d9-acec-491b-b0eb-31aa6e943b60" />
 
 ---
