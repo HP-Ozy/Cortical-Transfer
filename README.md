@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.webp" alt="Cortical-Transfer logo" width="160">
+</p>
+
 # Cortical-Transfer
 
 > **Transport your AI identity, not just your prompts.**
