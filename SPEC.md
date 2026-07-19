@@ -1,4 +1,4 @@
-# MemPack Format Specification — v0.1.0
+# MemPack Format Specification — v0.2.0
 
 Status: Draft. This document is normative. The key words MUST, MUST NOT,
 SHOULD, SHOULD NOT and MAY are to be interpreted as described in RFC 2119.
@@ -57,6 +57,8 @@ privacy). Everything in this spec MUST work identically without it: a node's
 | `last_confirmed_at` | RFC 3339 datetime      | Most recent evidence supporting the node. |
 | `superseded_by`     | string \| null         | ULID of the node that replaces this one. See below. |
 | `parent_id`         | string \| null         | ULID of a coarser-granularity node this belongs to. |
+| `valid_from`        | string \| null         | `YYYY-MM-DD`. When the fact became true in the real world (event time, not ingestion time). OPTIONAL, added in 0.2. |
+| `valid_until`       | string \| null         | `YYYY-MM-DD`. When the fact stopped being true. OPTIONAL, added in 0.2. |
 | `source_refs`       | array of string        | Opaque turn/conversation identifiers into `raw/`. |
 | `tags`              | array of string        | Free-form labels. |
 
@@ -66,6 +68,16 @@ id. Producers MUST NOT delete contradicted nodes (deletion is reserved for
 explicit redaction, §7). Importers MUST exclude superseded nodes from context
 building but MAY show them in history views. Supersession chains MUST be
 followed to the newest node.
+
+**Temporal validity.** `valid_from`/`valid_until` are **event time** — when the
+fact holds in the real world — distinct from `created_at`/`last_confirmed_at`
+(ingestion time). Producers SHOULD only set them when the source text states or
+implies them, resolving relative expressions against the conversation's date,
+and MUST NOT invent them. When a node is superseded, producers SHOULD set its
+`valid_until` to the superseding node's `valid_from` when known. Importers
+SHOULD exclude nodes whose `valid_until` is in the past from context building
+(like superseded nodes) and SHOULD show validity ranges next to facts that have
+them.
 
 **Hierarchy.** `parent_id` links `detail` → `episode` → `summary`. Importers
 SHOULD prefer coarser nodes when a token budget is tight and MAY drop children

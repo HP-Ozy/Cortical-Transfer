@@ -3,10 +3,14 @@ from pathlib import Path
 
 from cortical_transfer.extract import prompts
 from cortical_transfer.extract.pipeline import (
+    Turn,
+    _conv_date,
+    apply_merge,
     apply_resolution,
     dedup_exact,
     extract,
     iter_conversations,
+    merge_with_base,
     parse_json,
 )
 from cortical_transfer.schema import SemanticNode
@@ -182,4 +186,82 @@ def test_extract_end_to_end(tmp_path: Path) -> None:
 
 
 def test_prompt_version_pinned() -> None:
-    assert prompts.PROMPT_VERSION == "v1"
+    assert prompts.PROMPT_VERSION == "v2"
+
+
+def test_conv_date_parses_unix_and_iso() -> None:
+    def turn(ts: str | None) -> Turn:
+        return Turn(role="user", content="x", timestamp=ts, conversation_id="c", turn_id="c:0")
+
+    assert _conv_date([turn("2026-01-05T09:12:00Z")]) == "2026-01-05"
+    assert _conv_date([turn("1767571200")]) == "2026-01-05"
+    assert _conv_date([turn(None), turn("garbage")]) is None
+
+
+def test_apply_merge_folds_and_supersedes() -> None:
+    base = [SemanticNode(text="Works as a data engineer"), SemanticNode(text="Uses pandas")]
+    new = [
+        SemanticNode(text="Works as a data engineer at a logistics startup"),
+        SemanticNode(text="Uses polars now", valid_from="2026-03-01"),
+        SemanticNode(text="Learning Rust"),
+    ]
+    out = apply_merge(base, new, duplicates=[[0, 0]], contradictions=[[1, 1]])
+    assert len(out) == 4  # 2 base + 2 new; the duplicate was folded, nothing deleted
+    assert out[0].text == "Works as a data engineer at a logistics startup"  # richer text wins
+    assert out[1].superseded_by == new[1].id
+    assert out[1].valid_until == "2026-03-01"  # superseded fact ends where the new one begins
+    assert {n.text for n in out[2:]} == {"Uses polars now", "Learning Rust"}
+
+
+class MergeFake:
+    name = "fake"
+    model = "fake-1"
+
+    def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+        assert "EXISTING:" in prompt and "NEW:" in prompt
+        return '{"duplicates": [], "contradictions": [[0, 0]]}'
+
+
+def test_merge_with_base_llm_gate() -> None:
+    base = [SemanticNode(text="Standard dataframe library is pandas")]
+    new = [SemanticNode(text="Standard dataframe library is polars", valid_from="2026-02-01")]
+    out = merge_with_base(MergeFake(), base, new)
+    assert len(out) == 2
+    assert out[0].superseded_by == out[1].id
+    assert out[0].valid_until == "2026-02-01"
+
+
+def test_merge_with_base_skips_llm_when_either_side_empty() -> None:
+    class Boom:
+        name = "boom"
+
+        def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+            raise AssertionError("no LLM call expected")
+
+    node = SemanticNode(text="a")
+    assert merge_with_base(Boom(), [], [node]) == [node]
+    assert merge_with_base(Boom(), [node], []) == [node]
+
+
+def test_extract_merges_into_base(tmp_path: Path) -> None:
+    f = write_history(tmp_path, n_convs=1)
+
+    class Adapter(FakeAdapter):
+        def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+            if "EXISTING:" in prompt:
+                self.calls.append("merge")
+                return '{"duplicates": [], "contradictions": [[0, 0]]}'
+            return super().complete(prompt, system, json_mode)
+
+    from cortical_transfer.schema import MemPack
+
+    old = SemanticNode(text="Works in finance")
+    base = MemPack(identity=[old])
+    base.manifest.source_models = ["old-model"]
+    adapter = Adapter()
+    pack = extract(f, adapter, base=base)
+    assert "merge" in adapter.calls
+    kept = {n.text: n for n in pack.identity}
+    assert kept["Works in finance"].superseded_by  # contradicted, kept, superseded
+    assert "Works in AI" in kept
+    assert pack.manifest.source_models == ["old-model", "fake-1"]

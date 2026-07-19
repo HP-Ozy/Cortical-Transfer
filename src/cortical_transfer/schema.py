@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-FORMAT_VERSION = "0.1.0"
+FORMAT_VERSION = "0.2.0"
 
 # ponytail: inline ULID (Crockford base32, 10 ts chars + 16 random) beats a dependency.
 _B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -31,7 +31,9 @@ Granularity = Literal["summary", "episode", "detail"]
 
 
 class SemanticNode(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # extra="ignore": SPEC §8 — importers MUST accept higher-minor packs by
+    # ignoring unknown fields.
+    model_config = ConfigDict(extra="ignore")
 
     id: str = Field(default_factory=new_ulid)
     text: str
@@ -41,12 +43,15 @@ class SemanticNode(BaseModel):
     last_confirmed_at: datetime = Field(default_factory=now)
     superseded_by: str | None = None
     parent_id: str | None = None
+    # real-world validity (ISO dates), distinct from created_at (ingestion time)
+    valid_from: str | None = None
+    valid_until: str | None = None
     source_refs: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
 
 class Manifest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     format_version: str = FORMAT_VERSION
     created_at: datetime = Field(default_factory=now)

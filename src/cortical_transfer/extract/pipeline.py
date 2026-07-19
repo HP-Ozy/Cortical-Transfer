@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from itertools import groupby
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from cortical_transfer.schema import MemPack, SemanticNode
 _TRANSCRIPT_CAP = 12_000  # chars per conversation sent to the LLM
 _STYLE_CAP = 8_000  # chars of user messages for the style card
 _RESOLVE_CHUNK = 40  # statements per dedup/contradiction call
+_MERGE_CHUNK = 20  # new candidates per merge-gate call (existing list rides along whole)
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class Turn(BaseModel):
@@ -113,13 +116,35 @@ def parse_json(text: str) -> Any:
     return json.loads(text[start:])
 
 
+def _conv_date(turns: list[Turn]) -> str | None:
+    """First parseable turn timestamp as YYYY-MM-DD (unix float or ISO)."""
+    for t in turns:
+        if not t.timestamp:
+            continue
+        for parse in (
+            lambda s: datetime.fromtimestamp(float(s), UTC),
+            datetime.fromisoformat,
+        ):
+            try:
+                return parse(t.timestamp).date().isoformat()
+            except ValueError:
+                continue
+    return None
+
+
+def _iso_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and _ISO_DATE.match(value) else None
+
+
 def _candidate_nodes(
     adapter: Adapter, conv_id: str, turns: list[Turn]
 ) -> dict[str, list[SemanticNode]]:
     transcript = "\n".join(f"[{t.turn_id}] {t.role}: {t.content}" for t in turns)
     raw = adapter.complete(
-        prompts.EXTRACT_NODES_V1.format(
-            conversation_id=conv_id, transcript=transcript[:_TRANSCRIPT_CAP]
+        prompts.EXTRACT_NODES_V2.format(
+            conversation_id=conv_id,
+            conversation_date=_conv_date(turns) or "unknown",
+            transcript=transcript[:_TRANSCRIPT_CAP],
         ),
         system=prompts.SYSTEM_V1,
         json_mode=True,
@@ -139,6 +164,8 @@ def _candidate_nodes(
                         granularity=item.get("granularity", "episode"),
                         salience=max(0.0, min(1.0, float(item.get("salience", 0.5)))),
                         tags=[str(t) for t in item.get("tags", [])],
+                        valid_from=_iso_or_none(item.get("valid_from")),
+                        valid_until=_iso_or_none(item.get("valid_until")),
                         source_refs=refs,
                     )
                 )
@@ -158,6 +185,8 @@ def dedup_exact(nodes: list[SemanticNode]) -> list[SemanticNode]:
             kept.source_refs = list(dict.fromkeys(kept.source_refs + n.source_refs))
             kept.tags = list(dict.fromkeys(kept.tags + n.tags))
             kept.last_confirmed_at = max(kept.last_confirmed_at, n.last_confirmed_at)
+            kept.valid_from = kept.valid_from or n.valid_from
+            kept.valid_until = n.valid_until or kept.valid_until
         else:
             seen[key] = n
     return list(seen.values())
@@ -182,7 +211,7 @@ def _resolve(adapter: Adapter, nodes: list[SemanticNode]) -> list[SemanticNode]:
         chunk = nodes[i : i + _RESOLVE_CHUNK]
         numbered = "\n".join(f"{j}. {n.text}" for j, n in enumerate(chunk))
         raw = adapter.complete(
-            prompts.RESOLVE_V1.format(numbered=numbered), system=prompts.SYSTEM_V1, json_mode=True
+            prompts.RESOLVE_V2.format(numbered=numbered), system=prompts.SYSTEM_V1, json_mode=True
         )
         try:
             data = parse_json(raw)
@@ -192,6 +221,70 @@ def _resolve(adapter: Adapter, nodes: list[SemanticNode]) -> list[SemanticNode]:
         except (ValueError, json.JSONDecodeError):
             pass
         out.extend(chunk)
+    return out
+
+
+def apply_merge(
+    base: list[SemanticNode],
+    new: list[SemanticNode],
+    duplicates: list[list[int]],
+    contradictions: list[list[int]],
+) -> list[SemanticNode]:
+    """Deterministically apply LLM-proposed [existing, new] pairs.
+
+    Duplicate: fold the new node into the existing one (keep the richer text,
+    union refs/tags — the mem0 "keep the most information" rule). Contradiction:
+    mark the existing node superseded by the new one (SPEC §3); the superseded
+    fact inherits its end date from the new fact's start (graphiti rule)."""
+    eb, nb = range(len(base)), range(len(new))
+    folded: set[int] = set()
+    for pair in duplicates:
+        if len(pair) == 2 and pair[0] in eb and pair[1] in nb and pair[1] not in folded:
+            old, cand = base[pair[0]], new[pair[1]]
+            if len(cand.text) > len(old.text):
+                old.text = cand.text
+            old.salience = max(old.salience, cand.salience)
+            old.source_refs = list(dict.fromkeys(old.source_refs + cand.source_refs))
+            old.tags = list(dict.fromkeys(old.tags + cand.tags))
+            old.last_confirmed_at = max(old.last_confirmed_at, cand.last_confirmed_at)
+            old.valid_from = old.valid_from or cand.valid_from
+            old.valid_until = cand.valid_until or old.valid_until
+            folded.add(pair[1])
+    for pair in contradictions:
+        if len(pair) == 2 and pair[0] in eb and pair[1] in nb and pair[1] not in folded:
+            old, cand = base[pair[0]], new[pair[1]]
+            if not old.superseded_by:
+                old.superseded_by = cand.id
+                old.valid_until = old.valid_until or cand.valid_from
+    return base + [n for i, n in enumerate(new) if i not in folded]
+
+
+def merge_with_base(
+    adapter: Adapter, base: list[SemanticNode], new: list[SemanticNode]
+) -> list[SemanticNode]:
+    """Gate NEW nodes against the existing live memory: fold duplicates,
+    supersede contradictions, add the rest. A failed LLM call keeps everything
+    (fail open — never lose information)."""
+    if not base or not new:
+        return base + new
+    out = base
+    for i in range(0, len(new), _MERGE_CHUNK):
+        chunk = new[i : i + _MERGE_CHUNK]
+        raw = adapter.complete(
+            prompts.MERGE_V1.format(
+                existing="\n".join(f"{j}. {n.text}" for j, n in enumerate(out)),
+                new="\n".join(f"{j}. {n.text}" for j, n in enumerate(chunk)),
+            ),
+            system=prompts.SYSTEM_V1,
+            json_mode=True,
+        )
+        try:
+            data = parse_json(raw)
+            out = apply_merge(
+                out, chunk, data.get("duplicates", []), data.get("contradictions", [])
+            )
+        except (ValueError, json.JSONDecodeError):
+            out = out + chunk
     return out
 
 
@@ -224,8 +317,17 @@ def build_hierarchy(adapter: Adapter, episodes: list[SemanticNode]) -> list[Sema
     return parents + episodes
 
 
-def extract(history: Path, adapter: Adapter, source_model: str | None = None) -> MemPack:
-    """Full pipeline: candidates -> dedup -> contradictions -> hierarchy -> style."""
+def extract(
+    history: Path,
+    adapter: Adapter,
+    source_model: str | None = None,
+    base: MemPack | None = None,
+) -> MemPack:
+    """Full pipeline: candidates -> dedup -> contradictions -> merge into base
+    -> hierarchy -> style. With a `base` pack, new facts are gated against the
+    existing memory (fold duplicates, supersede contradictions) instead of
+    starting from scratch."""
+    base = base or MemPack()
     parts: dict[str, list[SemanticNode]] = {"identity": [], "episodes": [], "threads": []}
     user_sample: list[str] = []
     for conv_id, turns in iter_conversations(history):
@@ -235,18 +337,34 @@ def extract(history: Path, adapter: Adapter, source_model: str | None = None) ->
             user_sample += [t.content for t in turns if t.role == "user"]
 
     for part in parts:
-        parts[part] = _resolve(adapter, dedup_exact(parts[part]))
-    parts["episodes"] = build_hierarchy(adapter, parts["episodes"])
+        fresh = _resolve(adapter, dedup_exact(parts[part]))
+        old: list[SemanticNode] = getattr(base, part)
+        live = [n for n in old if not n.superseded_by]
+        dead = [n for n in old if n.superseded_by]
+        # exact-text repeats confirm the existing node for free (no LLM call)
+        live_ids = {n.id for n in live}
+        combined = dedup_exact(live + fresh)
+        parts[part] = dead + merge_with_base(
+            adapter,
+            [n for n in combined if n.id in live_ids],
+            [n for n in combined if n.id not in live_ids],
+        )
+    # group only ungrouped episode nodes; existing summaries/children stay as-is
+    loose = [n for n in parts["episodes"] if n.granularity != "summary" and not n.parent_id]
+    kept = [n for n in parts["episodes"] if n.granularity == "summary" or n.parent_id]
+    parts["episodes"] = build_hierarchy(adapter, loose) + kept
 
     style = adapter.complete(
         prompts.STYLE_V1.format(messages="\n---\n".join(user_sample)[:_STYLE_CAP])
     ).strip()
 
     pack = MemPack(
+        manifest=base.manifest,
         identity=parts["identity"],
         episodes=parts["episodes"],
         threads=parts["threads"],
-        style=style,
+        style=style or base.style,
     )
-    pack.manifest.source_models = [source_model or str(getattr(adapter, "model", adapter.name))]
+    model = source_model or str(getattr(adapter, "model", adapter.name))
+    pack.manifest.source_models = list(dict.fromkeys(pack.manifest.source_models + [model]))
     return pack

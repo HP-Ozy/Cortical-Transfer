@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +12,11 @@ import typer
 from cortical_transfer import store
 from cortical_transfer.integrity import load_pack, verify_pack
 from cortical_transfer.schema import SemanticNode
+
+# node text is arbitrary unicode; Windows consoles default to cp1252 and crash on echo
+for _stream in (sys.stdout, sys.stderr):
+    if isinstance(_stream, io.TextIOWrapper) and _stream.encoding.lower() != "utf-8":
+        _stream.reconfigure(encoding="utf-8")
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -42,7 +49,9 @@ def extract(
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     adapter = get_adapter()
-    pack = run_extract(history, adapter)
+    path = store.profile_path(profile)
+    base = load_pack(path) if (path / "mempack.json").exists() else None
+    pack = run_extract(history, adapter, base=base)
     sha = store.commit_pack(pack, profile, f"feat: extract from {history.name}")
     n = len(pack.all_nodes())
     typer.echo(f"extracted {n} nodes -> commit {sha[:8]}")
@@ -116,18 +125,21 @@ def eval_(
 ) -> None:
     """Measure transfer fidelity: quiz the adapter model on the injected memory."""
     from cortical_transfer.adapters.base import get_adapter
-    from cortical_transfer.eval import load_questions, run_eval
+    from cortical_transfer.eval import by_category, load_questions, run_eval
+    from cortical_transfer.inject import build_context, estimate_tokens
 
     adapter = get_adapter()
-    results = run_eval(
-        load_pack(store.profile_path(profile)), load_questions(questions), adapter, budget
-    )
+    pack = load_pack(store.profile_path(profile))
+    results = run_eval(pack, load_questions(questions), adapter, budget)
     for r in results:
         typer.echo(f"{'PASS' if r['passed'] else 'FAIL'}  {r['question']}")
         if verbose or not r["passed"]:
             typer.echo(f"      -> {r['answer'][:200].strip()}")
     n = sum(r["passed"] for r in results)
     typer.echo(f"\nrecall {n}/{len(results)} ({100 * n // len(results)}%) @ budget {budget}")
+    for cat, (p, t) in sorted(by_category(results).items()):
+        typer.echo(f"  {cat}: {p}/{t}")
+    typer.echo(f"context size: ~{estimate_tokens(build_context(pack, budget))} tokens")
 
 
 @app.command()

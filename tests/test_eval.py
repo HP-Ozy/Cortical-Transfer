@@ -1,4 +1,4 @@
-from cortical_transfer.eval import Question, hit, run_eval
+from cortical_transfer.eval import Question, Result, by_category, hit, run_eval
 from cortical_transfer.schema import MemPack, SemanticNode
 
 
@@ -31,3 +31,12 @@ def test_run_eval_counts() -> None:
     ]
     results = run_eval(pack, questions, FakeAdapter(), budget_tokens=500)
     assert [r["passed"] for r in results] == [True, False]
+
+
+def test_by_category_breakdown() -> None:
+    results: list[Result] = [
+        {"question": "a", "answer": "", "passed": True, "category": "temporal"},
+        {"question": "b", "answer": "", "passed": False, "category": "temporal"},
+        {"question": "c", "answer": "", "passed": True, "category": ""},
+    ]
+    assert by_category(results) == {"temporal": (1, 2)}

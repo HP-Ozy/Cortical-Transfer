@@ -1,6 +1,6 @@
 [project]
 name = "cortical-transfer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Portable AI memory: carry your identity, memory and style across LLMs. Reference implementation of the MemPack format."
 readme = "README.md"
 license = "Apache-2.0"

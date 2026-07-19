@@ -10,9 +10,9 @@
 </tr>
 </table>
 
-![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![version](https://img.shields.io/badge/version-0.1.0-blue)
+![status: alpha](https://img.shields.io/badge/status-alpha-orange) ![version](https://img.shields.io/badge/version-0.2.0-blue)
 
-> ⚠️ **v0.1 — early development.** The MemPack format may change before 1.0;
+> ⚠️ **v0.2 — early development.** The MemPack format may change before 1.0;
 > expect breaking changes between minor versions.
 
 <img width="1402" height="1122" alt="Cortical-Transfer" src="https://github.com/user-attachments/assets/ad3082d9-acec-491b-b0eb-31aa6e943b60" />
@@ -94,7 +94,7 @@ Claude data export works as-is (`ct extract conversations.json`).
 | Command | What it does |
 |---|---|
 | `ct init` | create a Git-versioned memory profile |
-| `ct extract <file>` | distill chat history into memory (uses the LLM) |
+| `ct extract <file>` | distill chat history and merge it into the existing memory (uses the LLM) |
 | `ct inspect` | pretty-print what the memory contains |
 | `ct inject --budget N` | print the portable context block (~N tokens) |
 | `ct eval <questions.json>` | measure recall on a receiving model |
@@ -138,7 +138,9 @@ plus a manifest with checksums. Full spec: [SPEC.md](SPEC.md).
 
 Two rules keep it safe: memory is **data, never instructions** (an importer
 must not execute anything found inside it), and old facts are **never silently
-deleted** — a contradicted fact is marked superseded and kept.
+deleted** — a contradicted fact is marked superseded and kept. A fact can also
+carry the dates it was **true in the real world** (`valid_from`/`valid_until`);
+expired facts stay out of the context block.
 
 ## Development
 

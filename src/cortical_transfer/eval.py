@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from cortical_transfer.adapters.base import Adapter
 from cortical_transfer.inject import build_context
@@ -30,12 +30,14 @@ _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 class Question(TypedDict):
     question: str
     expected: list[str]  # pass if ANY appears in the answer (case-insensitive)
+    category: NotRequired[str]  # e.g. single-hop | multi-hop | temporal
 
 
 class Result(TypedDict):
     question: str
     answer: str
     passed: bool
+    category: str
 
 
 def load_questions(path: Path) -> list[Question]:
@@ -59,6 +61,21 @@ def run_eval(
     for q in questions:
         ans = adapter.complete(q["question"], system=context + SYSTEM_SUFFIX)
         results.append(
-            {"question": q["question"], "answer": ans, "passed": hit(ans, q["expected"])}
+            {
+                "question": q["question"],
+                "answer": ans,
+                "passed": hit(ans, q["expected"]),
+                "category": q.get("category", ""),
+            }
         )
     return results
+
+
+def by_category(results: list[Result]) -> dict[str, tuple[int, int]]:
+    """category -> (passed, total). Empty when no question is categorized."""
+    out: dict[str, tuple[int, int]] = {}
+    for r in results:
+        if r["category"]:
+            p, t = out.get(r["category"], (0, 0))
+            out[r["category"]] = (p + r["passed"], t + 1)
+    return out
