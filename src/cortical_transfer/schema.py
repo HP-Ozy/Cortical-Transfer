@@ -28,6 +28,7 @@ def now() -> datetime:
 
 
 Granularity = Literal["summary", "episode", "detail"]
+Confidence = Literal["stated", "inferred"]
 
 
 class SemanticNode(BaseModel):
@@ -39,6 +40,8 @@ class SemanticNode(BaseModel):
     text: str
     granularity: Granularity = "episode"
     salience: float = Field(default=0.5, ge=0.0, le=1.0)
+    # stated = the user said it explicitly; inferred = deduced by the extractor
+    confidence: Confidence = "stated"
     created_at: datetime = Field(default_factory=now)
     last_confirmed_at: datetime = Field(default_factory=now)
     superseded_by: str | None = None
@@ -59,6 +62,8 @@ class Manifest(BaseModel):
     source_models: list[str] = Field(default_factory=list)
     generator: str = f"cortical-transfer/{FORMAT_VERSION}"
     content_hashes: dict[str, str] = Field(default_factory=dict)  # filename -> sha256 hex
+    # conversation_id -> sha256 of its turns; lets extract skip already-distilled convs
+    extracted: dict[str, str] = Field(default_factory=dict)
 
 
 class MemPack(BaseModel):

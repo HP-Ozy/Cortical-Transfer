@@ -40,8 +40,14 @@ def extract(
         ),
     ],
     profile: ProfileOpt = "default",
+    force: Annotated[
+        bool, typer.Option(help="re-extract conversations already distilled into this profile")
+    ] = False,
 ) -> None:
-    """Extract a MemPack from chat history and commit it to the profile."""
+    """Extract a MemPack from chat history and commit it to the profile.
+
+    Incremental: conversations already distilled (same id and content) are
+    skipped without LLM calls; use --force to redo them."""
     import logging
 
     from cortical_transfer.adapters.base import get_adapter
@@ -51,7 +57,7 @@ def extract(
     adapter = get_adapter()
     path = store.profile_path(profile)
     base = load_pack(path) if (path / "mempack.json").exists() else None
-    pack = run_extract(history, adapter, base=base)
+    pack = run_extract(history, adapter, base=base, force=force)
     sha = store.commit_pack(pack, profile, f"feat: extract from {history.name}")
     n = len(pack.all_nodes())
     typer.echo(f"extracted {n} nodes -> commit {sha[:8]}")
@@ -105,12 +111,17 @@ def checkout(rev: str, profile: ProfileOpt = "default") -> None:
 @app.command()
 def inject(
     budget: Annotated[int, typer.Option(help="token budget for the context block")] = 2000,
+    query: Annotated[
+        str | None,
+        typer.Option("--query", "-q", help="rank facts relevant to this topic first"),
+    ] = None,
     profile: ProfileOpt = "default",
 ) -> None:
     """Print a portable, token-budgeted context block to stdout."""
     from cortical_transfer.inject import build_context
 
-    typer.echo(build_context(load_pack(store.profile_path(profile)), budget_tokens=budget))
+    pack = load_pack(store.profile_path(profile))
+    typer.echo(build_context(pack, budget_tokens=budget, query=query))
 
 
 @app.command(name="eval")
@@ -120,6 +131,9 @@ def eval_(
         typer.Argument(help="JSON question set (see examples/eval_questions.json)", exists=True),
     ],
     budget: Annotated[int, typer.Option(help="token budget for the injected context")] = 2000,
+    scoped: Annotated[
+        bool, typer.Option(help="rebuild the context per question (query-scoped injection)")
+    ] = False,
     verbose: Annotated[bool, typer.Option(help="print answers for passing questions too")] = False,
     profile: ProfileOpt = "default",
 ) -> None:
@@ -130,7 +144,7 @@ def eval_(
 
     adapter = get_adapter()
     pack = load_pack(store.profile_path(profile))
-    results = run_eval(pack, load_questions(questions), adapter, budget)
+    results = run_eval(pack, load_questions(questions), adapter, budget, scoped=scoped)
     for r in results:
         typer.echo(f"{'PASS' if r['passed'] else 'FAIL'}  {r['question']}")
         if verbose or not r["passed"]:

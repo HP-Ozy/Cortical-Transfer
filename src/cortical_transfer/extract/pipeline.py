@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Iterator
@@ -141,7 +142,7 @@ def _candidate_nodes(
 ) -> dict[str, list[SemanticNode]]:
     transcript = "\n".join(f"[{t.turn_id}] {t.role}: {t.content}" for t in turns)
     raw = adapter.complete(
-        prompts.EXTRACT_NODES_V2.format(
+        prompts.EXTRACT_NODES_V3.format(
             conversation_id=conv_id,
             conversation_date=_conv_date(turns) or "unknown",
             transcript=transcript[:_TRANSCRIPT_CAP],
@@ -163,6 +164,9 @@ def _candidate_nodes(
                         text=str(item["text"]),
                         granularity=item.get("granularity", "episode"),
                         salience=max(0.0, min(1.0, float(item.get("salience", 0.5)))),
+                        confidence=(
+                            "inferred" if item.get("confidence") == "inferred" else "stated"
+                        ),
                         tags=[str(t) for t in item.get("tags", [])],
                         valid_from=_iso_or_none(item.get("valid_from")),
                         valid_until=_iso_or_none(item.get("valid_until")),
@@ -182,6 +186,8 @@ def dedup_exact(nodes: list[SemanticNode]) -> list[SemanticNode]:
         if key in seen:
             kept = seen[key]
             kept.salience = max(kept.salience, n.salience)
+            if n.confidence == "stated":
+                kept.confidence = "stated"
             kept.source_refs = list(dict.fromkeys(kept.source_refs + n.source_refs))
             kept.tags = list(dict.fromkeys(kept.tags + n.tags))
             kept.last_confirmed_at = max(kept.last_confirmed_at, n.last_confirmed_at)
@@ -244,6 +250,8 @@ def apply_merge(
             if len(cand.text) > len(old.text):
                 old.text = cand.text
             old.salience = max(old.salience, cand.salience)
+            if cand.confidence == "stated":
+                old.confidence = "stated"
             old.source_refs = list(dict.fromkeys(old.source_refs + cand.source_refs))
             old.tags = list(dict.fromkeys(old.tags + cand.tags))
             old.last_confirmed_at = max(old.last_confirmed_at, cand.last_confirmed_at)
@@ -317,20 +325,33 @@ def build_hierarchy(adapter: Adapter, episodes: list[SemanticNode]) -> list[Sema
     return parents + episodes
 
 
+def _conv_digest(turns: list[Turn]) -> str:
+    return hashlib.sha256(
+        "\n".join(f"{t.role}:{t.content}" for t in turns).encode("utf-8")
+    ).hexdigest()
+
+
 def extract(
     history: Path,
     adapter: Adapter,
     source_model: str | None = None,
     base: MemPack | None = None,
+    force: bool = False,
 ) -> MemPack:
     """Full pipeline: candidates -> dedup -> contradictions -> merge into base
     -> hierarchy -> style. With a `base` pack, new facts are gated against the
     existing memory (fold duplicates, supersede contradictions) instead of
-    starting from scratch."""
+    starting from scratch. Conversations already distilled into `base` (same
+    id, same content) are skipped — no LLM calls — unless `force` is set."""
     base = base or MemPack()
+    seen = dict(base.manifest.extracted)
     parts: dict[str, list[SemanticNode]] = {"identity": [], "episodes": [], "threads": []}
     user_sample: list[str] = []
     for conv_id, turns in iter_conversations(history):
+        digest = _conv_digest(turns)
+        if not force and seen.get(conv_id) == digest:
+            continue
+        seen[conv_id] = digest
         for part, nodes in _candidate_nodes(adapter, conv_id, turns).items():
             parts[part].extend(nodes)
         if sum(map(len, user_sample)) < _STYLE_CAP:
@@ -354,9 +375,13 @@ def extract(
     kept = [n for n in parts["episodes"] if n.granularity == "summary" or n.parent_id]
     parts["episodes"] = build_hierarchy(adapter, loose) + kept
 
-    style = adapter.complete(
-        prompts.STYLE_V1.format(messages="\n---\n".join(user_sample)[:_STYLE_CAP])
-    ).strip()
+    style = (
+        adapter.complete(
+            prompts.STYLE_V1.format(messages="\n---\n".join(user_sample)[:_STYLE_CAP])
+        ).strip()
+        if user_sample
+        else ""
+    )
 
     pack = MemPack(
         manifest=base.manifest,
@@ -365,6 +390,7 @@ def extract(
         threads=parts["threads"],
         style=style or base.style,
     )
+    pack.manifest.extracted = seen
     model = source_model or str(getattr(adapter, "model", adapter.name))
     pack.manifest.source_models = list(dict.fromkeys(pack.manifest.source_models + [model]))
     return pack

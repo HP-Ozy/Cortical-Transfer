@@ -55,11 +55,15 @@ def run_eval(
     questions: list[Question],
     adapter: Adapter,
     budget_tokens: int = 2000,
+    scoped: bool = False,
 ) -> list[Result]:
-    context = build_context(pack, budget_tokens=budget_tokens)
+    """With `scoped`, the context is rebuilt per question with query=question —
+    measures the query-scoped injection path against the same question set."""
+    context = "" if scoped else build_context(pack, budget_tokens=budget_tokens)
     results: list[Result] = []
     for q in questions:
-        ans = adapter.complete(q["question"], system=context + SYSTEM_SUFFIX)
+        ctx = build_context(pack, budget_tokens, query=q["question"]) if scoped else context
+        ans = adapter.complete(q["question"], system=ctx + SYSTEM_SUFFIX)
         results.append(
             {
                 "question": q["question"],

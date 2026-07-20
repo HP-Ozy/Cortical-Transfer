@@ -33,7 +33,13 @@ class FakeAdapter:
                     "identity": [
                         {"text": "Works in AI", "granularity": "summary", "salience": 0.9}
                     ],
-                    "episodes": [{"text": f"Episode {len(self.calls)}", "salience": 0.5}],
+                    "episodes": [
+                        {
+                            "text": f"Episode {len(self.calls)}",
+                            "salience": 0.5,
+                            "confidence": "inferred",
+                        }
+                    ],
                     "threads": [],
                 }
             )
@@ -183,10 +189,31 @@ def test_extract_end_to_end(tmp_path: Path) -> None:
     assert pack.style == "Concise and technical."
     assert pack.manifest.source_models == ["fake-1"]
     assert all(n.source_refs for n in pack.all_nodes())
+    assert all(n.confidence == "stated" for n in pack.identity)  # omitted -> stated
+    assert all(n.confidence == "inferred" for n in pack.episodes)
+
+
+def test_incremental_skips_seen_conversations(tmp_path: Path) -> None:
+    f = write_history(tmp_path, n_convs=3)
+    first = FakeAdapter()
+    pack = extract(f, first)
+    assert first.calls.count("extract") == 3
+    assert len(pack.manifest.extracted) == 3
+
+    second = FakeAdapter()
+    again = extract(f, second, base=pack)
+    assert second.calls.count("extract") == 0  # nothing new, no LLM extraction
+    assert "style" not in second.calls  # no new user messages, style kept
+    assert again.style == pack.style
+    assert len(again.all_nodes()) == len(pack.all_nodes())
+
+    forced = FakeAdapter()
+    extract(f, forced, base=pack, force=True)
+    assert forced.calls.count("extract") == 3  # --force redoes everything
 
 
 def test_prompt_version_pinned() -> None:
-    assert prompts.PROMPT_VERSION == "v2"
+    assert prompts.PROMPT_VERSION == "v3"
 
 
 def test_conv_date_parses_unix_and_iso() -> None:

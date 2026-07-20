@@ -94,10 +94,10 @@ Claude data export works as-is (`ct extract conversations.json`).
 | Command | What it does |
 |---|---|
 | `ct init` | create a Git-versioned memory profile |
-| `ct extract <file>` | distill chat history and merge it into the existing memory (uses the LLM) |
+| `ct extract <file>` | distill chat history and merge it into the existing memory (uses the LLM). Incremental: already-distilled conversations are skipped (`--force` redoes them) |
 | `ct inspect` | pretty-print what the memory contains |
-| `ct inject --budget N` | print the portable context block (~N tokens) |
-| `ct eval <questions.json>` | measure recall on a receiving model |
+| `ct inject --budget N` | print the portable context block (~N tokens); `--query "topic"` ranks facts relevant to the topic first, so a tight budget spends its tokens on what the session is about |
+| `ct eval <questions.json>` | measure recall on a receiving model (`--scoped` evals the query-scoped injection path) |
 | `ct log` / `ct diff` / `ct checkout` | memory history: every change is a Git commit |
 | `ct verify` | check SHA-256 integrity of the pack |
 | `ct redact <node-id>` | permanently erase one fact, including from Git history |

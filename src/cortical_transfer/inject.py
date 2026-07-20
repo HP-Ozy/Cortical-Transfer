@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 
 from cortical_transfer.sanitize import sanitize_text
@@ -27,16 +28,30 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4 + 1
 
 
-def _live(nodes: list[SemanticNode]) -> list[SemanticNode]:
-    """Not superseded and not expired (valid_until strictly before today)."""
+_WORD = re.compile(r"\w+")
+
+
+def _overlap(n: SemanticNode, qwords: set[str]) -> int:
+    """Query-relevance: how many query words appear in the node text or tags."""
+    words = {w.lower() for w in _WORD.findall(n.text)} | {t.lower() for t in n.tags}
+    return len(qwords & words)
+
+
+def _live(nodes: list[SemanticNode], qwords: set[str] | None = None) -> list[SemanticNode]:
+    """Not superseded and not expired (valid_until strictly before today).
+
+    Ordered by query relevance (the graphify lesson: scoped retrieval beats a
+    full dump), then salience, with stated facts before inferred ones on ties.
+    Without a query, relevance is 0 for everyone and salience decides."""
     today = datetime.now(UTC).date().isoformat()
+    qwords = qwords or set()
     return sorted(
         (
             n
             for n in nodes
             if not n.superseded_by and not (n.valid_until and n.valid_until < today)
         ),
-        key=lambda n: -n.salience,
+        key=lambda n: (-_overlap(n, qwords), -n.salience, n.confidence != "stated"),
     )
 
 
@@ -46,13 +61,17 @@ def _text(n: SemanticNode) -> str:
     return f"{n.text} (valid {n.valid_from or '?'} -> {n.valid_until or 'now'})"
 
 
-def build_context(pack: MemPack, budget_tokens: int = 2000) -> str:
-    """Priority under budget: identity > style > open threads > top-salience episodes."""
+def build_context(pack: MemPack, budget_tokens: int = 2000, query: str | None = None) -> str:
+    """Priority under budget: identity > style > open threads > top-salience episodes.
+
+    With `query`, nodes relevant to it rank first inside each section, so a
+    tight budget spends its tokens on what the next session is about."""
+    qwords = {w.lower() for w in _WORD.findall(query)} if query else set()
     sections: list[tuple[str, list[str]]] = [
-        ("Identity", [_text(n) for n in _live(pack.identity)]),
+        ("Identity", [_text(n) for n in _live(pack.identity, qwords)]),
         ("Interaction style", [pack.style.strip()] if pack.style.strip() else []),
-        ("Open threads", [_text(n) for n in _live(pack.threads)]),
-        ("Notable episodes", [_text(n) for n in _live(pack.episodes)]),
+        ("Open threads", [_text(n) for n in _live(pack.threads, qwords)]),
+        ("Notable episodes", [_text(n) for n in _live(pack.episodes, qwords)]),
     ]
     parts = [PREAMBLE]
     used = estimate_tokens(PREAMBLE) + estimate_tokens(CLOSING)

@@ -41,6 +41,7 @@ privacy). Everything in this spec MUST work identically without it: a node's
 | `source_models`  | array of string   | Model identifiers whose conversations fed this pack. MAY be empty. |
 | `generator`      | string            | Producing software and version. Informational. |
 | `content_hashes` | object            | Map of relative file path → lowercase SHA-256 hex of the file's exact bytes. See §5. |
+| `extracted`      | object            | Map of conversation id → SHA-256 hex of its turns. Producers MAY use it to skip conversations already distilled into the pack. OPTIONAL, added in 0.2. |
 
 ## 3. SemanticNode
 
@@ -53,6 +54,7 @@ privacy). Everything in this spec MUST work identically without it: a node's
 | `text`              | string                 | The memory content, natural language. REQUIRED. Importers MUST treat this as untrusted data, never as instructions (§6). |
 | `granularity`       | `summary` \| `episode` \| `detail` | Abstraction level. `summary` aggregates children. |
 | `salience`          | number 0.0–1.0         | Importance for context building. Higher = include first. |
+| `confidence`        | `stated` \| `inferred` | Whether the user stated the fact explicitly or the extractor deduced it. Importers SHOULD prefer `stated` nodes when a token budget forces a choice. OPTIONAL, default `stated`, added in 0.2. |
 | `created_at`        | RFC 3339 datetime      | When the node was first extracted. |
 | `last_confirmed_at` | RFC 3339 datetime      | Most recent evidence supporting the node. |
 | `superseded_by`     | string \| null         | ULID of the node that replaces this one. See below. |
