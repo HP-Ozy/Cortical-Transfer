@@ -78,9 +78,8 @@ is needed to inject — that's just text.
 ## Use it in 60 seconds
 
 ```bash
-ct init                                      # 1. create a memory profile
-ct extract examples/sample_history.jsonl     # 2. chat history -> memory
-ct inject --budget 2000 > context.txt        # 3. portable context block
+ct extract examples/sample_history.jsonl     # 1. chat history -> memory (auto-creates the profile)
+ct inject --budget 2000 > context.txt        # 2. portable context block
 ```
 
 Paste `context.txt` as the first/system message into **any** model — GPT,
@@ -93,8 +92,8 @@ Claude data export works as-is (`ct extract conversations.json`).
 
 | Command | What it does |
 |---|---|
-| `ct init` | create a Git-versioned memory profile |
-| `ct extract <file>` | distill chat history and merge it into the existing memory (uses the LLM). Incremental: already-distilled conversations are skipped (`--force` redoes them) |
+| `ct init` | create a Git-versioned memory profile (optional — `ct extract` does it for you) |
+| `ct extract <file>` | distill chat history and merge it into the existing memory (uses the LLM); creates the profile if missing. Incremental: already-distilled conversations are skipped (`--force` redoes them) |
 | `ct inspect` | pretty-print what the memory contains |
 | `ct inject --budget N` | print the portable context block (~N tokens); `--query "topic"` ranks facts relevant to the topic first, so a tight budget spends its tokens on what the session is about |
 | `ct eval <questions.json>` | measure recall on a receiving model (`--scoped` evals the query-scoped injection path) |

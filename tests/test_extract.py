@@ -292,3 +292,17 @@ def test_extract_merges_into_base(tmp_path: Path) -> None:
     assert kept["Works in finance"].superseded_by  # contradicted, kept, superseded
     assert "Works in AI" in kept
     assert pack.manifest.source_models == ["old-model", "fake-1"]
+
+
+def test_cli_extract_auto_inits(tmp_path, monkeypatch):
+    """`ct extract` on a fresh machine creates the profile itself — no `ct init` needed."""
+    monkeypatch.setenv("CT_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr("cortical_transfer.adapters.base.get_adapter", lambda: FakeAdapter())
+    from typer.testing import CliRunner
+
+    from cortical_transfer.cli import app
+
+    result = CliRunner().invoke(app, ["extract", str(write_history(tmp_path))])
+    assert result.exit_code == 0, result.output
+    assert "initialized profile 'default'" in result.output
+    assert "extracted" in result.output

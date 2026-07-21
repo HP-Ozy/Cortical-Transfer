@@ -56,6 +56,9 @@ def extract(
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     adapter = get_adapter()
     path = store.profile_path(profile)
+    if not (path / ".git").exists():  # ponytail: auto-init, `ct init` resta per uso esplicito
+        store.init_profile(profile)
+        typer.echo(f"initialized profile '{profile}' at {path}")
     base = load_pack(path) if (path / "mempack.json").exists() else None
     pack = run_extract(history, adapter, base=base, force=force)
     sha = store.commit_pack(pack, profile, f"feat: extract from {history.name}")
