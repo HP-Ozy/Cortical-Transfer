@@ -19,7 +19,10 @@ class OllamaAdapter:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": 0},
+            # num_predict: hard cap — small models can enter endless repeat
+            # loops (seen: qwen2.5:3b copying quotes forever, >600s timeout);
+            # a truncated response fails one JSON parse, a runaway kills the run
+            "options": {"temperature": 0, "num_predict": 4096},
         }
         if system:
             payload["system"] = system
