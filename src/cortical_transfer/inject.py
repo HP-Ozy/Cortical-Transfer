@@ -55,10 +55,27 @@ def _live(nodes: list[SemanticNode], qwords: set[str] | None = None) -> list[Sem
     )
 
 
+# ponytail: telegraph rendering = strip English articles only; dates, numbers,
+# negations and verbs stay verbatim. Mid-sentence capitalized "The" is kept
+# (proper names: "The Hague"). Ceiling ~8% token savings; next rung is
+# telegraphic style in the extract prompt.
+_LEAD_ARTICLE = re.compile(r"^(?:the|a|an)\s+", re.IGNORECASE)
+_MID_ARTICLE = re.compile(r"(?<=[\s(])(?:the|a|an)\s+")
+
+
+def _telegraph(text: str) -> str:
+    """Shorter facts -> more facts fit the token budget."""
+    return _MID_ARTICLE.sub("", _LEAD_ARTICLE.sub("", text))
+
+
 def _text(n: SemanticNode) -> str:
+    body = _telegraph(n.text)
+    # high-risk verbatim rides along untelegraphed: the source words are the point
+    if n.quote and n.quote.lower() not in n.text.lower():
+        body += f' — "{n.quote}"'
     if not (n.valid_from or n.valid_until):
-        return n.text
-    return f"{n.text} (valid {n.valid_from or '?'} -> {n.valid_until or 'now'})"
+        return body
+    return f"{body} (valid {n.valid_from or '?'} -> {n.valid_until or 'now'})"
 
 
 def build_context(pack: MemPack, budget_tokens: int = 2000, query: str | None = None) -> str:

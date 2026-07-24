@@ -179,6 +179,39 @@ def test_apply_resolution_ignores_garbage_indices() -> None:
     assert len(out) == 2 and all(n.superseded_by is None for n in out)
 
 
+def test_quote_verified_against_transcript() -> None:
+    from cortical_transfer.extract.pipeline import _candidate_nodes
+
+    class QuoteAdapter:
+        name = model = "fake"
+
+        def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+            return json.dumps(
+                {
+                    "identity": [],
+                    "threads": [],
+                    "episodes": [
+                        {"text": "Ran a 5K", "quote": "I ran the 5K in 31 minutes yesterday"},
+                        {"text": "Got a promotion", "quote": "I was promoted to VP"},  # fabricated
+                    ],
+                }
+            )
+
+    turns = [
+        Turn(
+            role="user",
+            content="Guess what, I ran the 5K\nin 31 minutes yesterday!",
+            timestamp="2023-05-20T10:00:00",
+            conversation_id="c1",
+            turn_id="c1:0",
+        )
+    ]
+    nodes = _candidate_nodes(QuoteAdapter(), "c1", turns)["episodes"]
+    # real span kept (whitespace-normalized match) and date-resolved; fabricated dropped
+    assert nodes[0].quote == "I ran the 5K in 31 minutes yesterday (19 May 2023)"
+    assert nodes[1].quote is None
+
+
 def test_extract_end_to_end(tmp_path: Path) -> None:
     f = write_history(tmp_path, n_convs=3)
     adapter = FakeAdapter()
@@ -214,7 +247,7 @@ def test_incremental_skips_seen_conversations(tmp_path: Path) -> None:
 
 
 def test_prompt_version_pinned() -> None:
-    assert prompts.PROMPT_VERSION == "v3"
+    assert prompts.PROMPT_VERSION == "v4"
 
 
 def test_conv_date_parses_unix_and_iso() -> None:

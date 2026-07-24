@@ -116,6 +116,35 @@ def test_query_matches_tags_too() -> None:
     assert out.index("PostgreSQL") < out.index("standing desk")
 
 
+def test_telegraph_strips_articles_keeps_names_dates_negations() -> None:
+    pack = MemPack(
+        identity=[SemanticNode(text="The user adopted a dog from an old shelter")],
+        episodes=[
+            SemanticNode(text="Moved to The Hague on 29 June 2023"),
+            SemanticNode(text="Is not a fan of the ORM approach"),
+        ],
+    )
+    out = build_context(pack)
+    assert "- user adopted dog from old shelter" in out
+    assert "Moved to The Hague on 29 June 2023" in out  # proper name + date intact
+    assert "Is not fan of ORM approach" in out  # negation intact
+
+
+def test_quote_rendered_verbatim_next_to_fact() -> None:
+    pack = MemPack(
+        episodes=[
+            SemanticNode(
+                text="Melanie ran a charity race",
+                quote="I ran the 5K in 31 minutes last Saturday",
+            ),
+            SemanticNode(text="Prefers tea", quote="prefers tea"),  # quote ⊆ text: no repeat
+        ]
+    )
+    out = build_context(pack)
+    assert '- Melanie ran charity race — "I ran the 5K in 31 minutes last Saturday"' in out
+    assert out.lower().count("prefers tea") == 1
+
+
 def test_stated_ranks_before_inferred_on_salience_tie() -> None:
     pack = MemPack(
         identity=[

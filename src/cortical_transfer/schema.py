@@ -49,6 +49,9 @@ class SemanticNode(BaseModel):
     # real-world validity (ISO dates), distinct from created_at (ingestion time)
     valid_from: str | None = None
     valid_until: str | None = None
+    # verbatim source span for high-risk facts (numbers, dates, durations,
+    # negations) — never distilled, verified against the transcript at extract
+    quote: str | None = None
     source_refs: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 

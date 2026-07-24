@@ -187,13 +187,25 @@ def resolve_relative_dates(text: str, conv_date: str | None) -> str:
     return _RELATIVE.sub(lambda m: f"{m[0]} ({resolved(m)})", text)
 
 
+def _flat(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _verbatim(quote: Any, transcript_flat: str) -> str | None:
+    """Keep an extractor quote only if it truly appears in the transcript —
+    a fabricated 'verbatim' span is worse than none (trust boundary)."""
+    if not isinstance(quote, str) or not quote.strip():
+        return None
+    return quote.strip() if _flat(quote) in transcript_flat else None
+
+
 def _candidate_nodes(
     adapter: Adapter, conv_id: str, turns: list[Turn]
 ) -> dict[str, list[SemanticNode]]:
     transcript = "\n".join(f"[{t.turn_id}] {t.role}: {t.content}" for t in turns)
     conv_date = _conv_date(turns)
     raw = adapter.complete(
-        prompts.EXTRACT_NODES_V3.format(
+        prompts.EXTRACT_NODES_V4.format(
             conversation_id=conv_id,
             conversation_date=conv_date or "unknown",
             transcript=transcript[:_TRANSCRIPT_CAP],
@@ -202,6 +214,7 @@ def _candidate_nodes(
         json_mode=True,
     )
     refs = [t.turn_id for t in turns]
+    flat = _flat(transcript)
     out: dict[str, list[SemanticNode]] = {"identity": [], "episodes": [], "threads": []}
     try:
         data = parse_json(raw)
@@ -210,9 +223,11 @@ def _candidate_nodes(
     for part in out:
         for item in data.get(part, []) or []:
             try:
+                quote = _verbatim(item.get("quote"), flat)
                 out[part].append(
                     SemanticNode(
                         text=resolve_relative_dates(str(item["text"]), conv_date),
+                        quote=resolve_relative_dates(quote, conv_date) if quote else None,
                         granularity=item.get("granularity", "episode"),
                         salience=max(0.0, min(1.0, float(item.get("salience", 0.5)))),
                         confidence=(
@@ -244,6 +259,7 @@ def dedup_exact(nodes: list[SemanticNode]) -> list[SemanticNode]:
             kept.last_confirmed_at = max(kept.last_confirmed_at, n.last_confirmed_at)
             kept.valid_from = kept.valid_from or n.valid_from
             kept.valid_until = n.valid_until or kept.valid_until
+            kept.quote = kept.quote or n.quote
         else:
             seen[key] = n
     return list(seen.values())
@@ -308,6 +324,7 @@ def apply_merge(
             old.last_confirmed_at = max(old.last_confirmed_at, cand.last_confirmed_at)
             old.valid_from = old.valid_from or cand.valid_from
             old.valid_until = cand.valid_until or old.valid_until
+            old.quote = old.quote or cand.quote
             folded.add(pair[1])
     for pair in contradictions:
         if len(pair) == 2 and pair[0] in eb and pair[1] in nb and pair[1] not in folded:

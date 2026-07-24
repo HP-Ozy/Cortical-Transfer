@@ -61,6 +61,7 @@ privacy). Everything in this spec MUST work identically without it: a node's
 | `parent_id`         | string \| null         | ULID of a coarser-granularity node this belongs to. |
 | `valid_from`        | string \| null         | `YYYY-MM-DD`. When the fact became true in the real world (event time, not ingestion time). OPTIONAL, added in 0.2. |
 | `valid_until`       | string \| null         | `YYYY-MM-DD`. When the fact stopped being true. OPTIONAL, added in 0.2. |
+| `quote`             | string \| null         | Verbatim source span for high-risk facts (numbers, dates, durations, negations). Producers MUST verify it appears in the source transcript and MUST NOT paraphrase it. Importers SHOULD show it next to `text`. OPTIONAL, added in 0.2. |
 | `source_refs`       | array of string        | Opaque turn/conversation identifiers into `raw/`. |
 | `tags`              | array of string        | Free-form labels. |
 

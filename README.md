@@ -75,23 +75,28 @@ every writer×reader cell runs the same 38 questions:
 
 | writer ↓ reader → | qwen3-coder:30b | qwen2.5:3b |
 |---|---|---|
-| **qwen3-coder:30b** (127 nodes) | **52%** | 39% |
-| **qwen2.5:3b** (102 nodes) | 44% | 34% |
+| **qwen3-coder:30b** (119 nodes) | **76%** | 65% |
+| **qwen2.5:3b** (104 nodes) | 50% | 39% |
 
 What the matrix says:
 
-- **Switching the reader costs ~10 points** (52% → 39%): most of a pack
+- **Verbatim quotes are the single biggest lever measured on this project**:
+  attaching the exact source sentence to high-risk facts (numbers, dates,
+  durations, negations — verified against the transcript, never paraphrased)
+  took the best cell from 52% to 76% and temporal recall from 13 to 30 of 52.
+  Distillation was rewriting exactly the details a paraphrase corrupts;
+  copying them fixes what no retrieval layer could.
+- **Switching the reader costs ~11 points** (76% → 65%): most of a pack
   written once survives the jump to a much smaller model.
-- **A weak writer costs ~8 for the same reader** (52% → 44%): spend your
-  compute on `extract`, not on the receiving side.
+- **A weak writer costs ~26 for the same reader** (76% → 50%): spend your
+  compute on `extract`, not on the receiving side — a small writer also
+  copies quotes worse, so the verbatim gain shrinks with it.
 - **A good pack upgrades a small reader**: qwen2.5:3b answers better from the
-  30b-written pack (39%) than from its own (34%).
-- **Temporal recall doubled** (5 → 13 of 52 across the matrix) when extract
-  started resolving relative dates deterministically — "last week" becomes
-  "last week (1 May 2023)" via stdlib date math against the conversation date,
-  instead of trusting the extractor model to do it (it didn't: 1–2/13 in every
-  cell before). The remaining temporal misses are extraction quality, not
-  date math.
+  30b-written pack (65%) than from its own (39%).
+- **Two deterministic, stdlib-only steps drove temporal recall 5 → 30 of 52**:
+  first resolving relative dates against the conversation date ("last week" →
+  "last week (1 May 2023)", 5 → 13), then the verbatim quotes above (13 → 30).
+  Neither adds a dependency or an LLM call.
 
 Method and caveats: single LoCoMo sample, first 12 sessions, categories
 single-hop / multi-hop / temporal (adversarial needs an LLM judge, ct's judge

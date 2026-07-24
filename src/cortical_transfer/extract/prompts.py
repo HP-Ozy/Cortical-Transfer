@@ -1,6 +1,6 @@
 """Extraction prompts. Versioned constants — bump the suffix, never edit in place."""
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 SYSTEM_V1 = (
     "You extract long-term memory about the USER from a chat transcript. "
@@ -78,6 +78,45 @@ Quality rules:
 - Extract only what the conversation supports — no outside knowledge, no guesses.
 - confidence: "stated" if the user says the fact explicitly; "inferred" if you
   deduced it from context (word choice, implications, patterns).
+
+Temporal rules (this conversation happened on: {conversation_date}):
+- valid_from / valid_until = when the fact is true in the real world.
+- Resolve relative expressions ("yesterday", "until March") against the
+  conversation date above, never against today.
+- If the text states no explicit time, set both to null. Do not infer dates
+  from unrelated events.
+
+CONVERSATION (id={conversation_id}):
+{transcript}
+"""
+
+EXTRACT_NODES_V4 = """\
+From the conversation below, extract memory about the user in JSON:
+
+{{"identity": [...], "episodes": [...], "threads": [...]}}
+
+- identity: stable facts about the user (profession, preferences, environment, languages).
+- episodes: salient events or decisions from this conversation.
+- threads: topics left open or unresolved.
+
+Each item: {{"text": "<one self-contained sentence>", "granularity": "summary"|"episode"|"detail",
+"salience": <0.0-1.0>, "confidence": "stated"|"inferred", "tags": ["..."],
+"valid_from": "YYYY-MM-DD"|null, "valid_until": "YYYY-MM-DD"|null,
+"quote": "<exact source sentence>"|null}}.
+
+Quality rules:
+- Each text stands alone: name its subject explicitly, no pronouns that need
+  the conversation to be resolved.
+- Keep concrete details exactly as stated (names, numbers, versions, titles);
+  never generalize them.
+- If the assistant merely repeats what the user said, extract it once.
+- Extract only what the conversation supports — no outside knowledge, no guesses.
+- confidence: "stated" if the user says the fact explicitly; "inferred" if you
+  deduced it from context (word choice, implications, patterns).
+- quote: if the fact involves a number, date, duration, version, ID, or a
+  negation / rejected option, copy the single source sentence that states it
+  from the transcript, VERBATIM — same words, same punctuation, no [turn] tag.
+  Otherwise null. Never paraphrase inside quote.
 
 Temporal rules (this conversation happened on: {conversation_date}):
 - valid_from / valid_until = when the fact is true in the real world.
