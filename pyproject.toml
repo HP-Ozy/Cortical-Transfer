@@ -11,11 +11,16 @@ dependencies = [
     "gitpython>=3.1",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+
 [project.scripts]
 ct = "cortical_transfer.cli:app"
+ct-mcp = "cortical_transfer.mcp_server:main"
 
 [dependency-groups]
 dev = [
+    "mcp>=1.0",
     "pytest>=8",
     "pytest-cov>=5",
     "ruff>=0.6",
