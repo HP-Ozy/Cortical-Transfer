@@ -75,22 +75,23 @@ every writer×reader cell runs the same 38 questions:
 
 | writer ↓ reader → | qwen3-coder:30b | qwen2.5:3b |
 |---|---|---|
-| **qwen3-coder:30b** (130 nodes) | **44%** | 39% |
-| **qwen2.5:3b** (103 nodes) | 34% | 34% |
+| **qwen3-coder:30b** (127 nodes) | **52%** | 39% |
+| **qwen2.5:3b** (102 nodes) | 44% | 34% |
 
 What the matrix says:
 
-- **Switching the reader costs ~5 points** (44% → 39%): a pack written once
-  transports to a much smaller model nearly intact.
-- **A weak writer costs twice that** (44% → 34% for the same reader): spend
-  your compute on `extract`, not on the receiving side.
+- **Switching the reader costs ~10 points** (52% → 39%): most of a pack
+  written once survives the jump to a much smaller model.
+- **A weak writer costs ~8 for the same reader** (52% → 44%): spend your
+  compute on `extract`, not on the receiving side.
 - **A good pack upgrades a small reader**: qwen2.5:3b answers better from the
   30b-written pack (39%) than from its own (34%).
-- Known weak spot: **temporal recall (1–2/13 in every cell)** — local models
-  keep relative dates ("last week") un-resolved despite the prompt rules.
-  Since then, extract resolves them deterministically (stdlib date math against
-  the conversation date: "tomorrow" → "tomorrow (2023-05-09)"); the matrix
-  above predates the fix and is due for a re-run.
+- **Temporal recall doubled** (5 → 13 of 52 across the matrix) when extract
+  started resolving relative dates deterministically — "last week" becomes
+  "last week (1 May 2023)" via stdlib date math against the conversation date,
+  instead of trusting the extractor model to do it (it didn't: 1–2/13 in every
+  cell before). The remaining temporal misses are extraction quality, not
+  date math.
 
 Method and caveats: single LoCoMo sample, first 12 sessions, categories
 single-hop / multi-hop / temporal (adversarial needs an LLM judge, ct's judge

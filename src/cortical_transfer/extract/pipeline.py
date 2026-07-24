@@ -137,27 +137,33 @@ def _iso_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) and _ISO_DATE.match(value) else None
 
 
-# "tomorrow", "last week", "3 months ago", ... — not already followed by a (YYYY... date
+# "tomorrow", "last week", "3 months ago", ... — not already followed by a (... year) date
 _RELATIVE = re.compile(
     r"\b(?:(yesterday|today|tomorrow)"
-    r"|(last|next|this)\s+(week|month|year)"
-    r"|(\d{1,3}|an?)\s+(day|week|month|year)s?\s+ago)\b(?!\s*\(\d{4})",
+    r"|(last|next|this)\s+(week|weekend|month|year)"
+    r"|(\d{1,3}|an?)\s+(day|week|month|year)s?\s+ago)\b(?!\s*\([^)]*\d{4}[^)]*\))",
     re.IGNORECASE,
 )
 
 
+def _day(d: date) -> str:
+    return f"{d.day} {d:%B} {d.year}"  # "9 May 2023" — unambiguous, no DD/MM vs MM/DD
+
+
 def _month_shift(d: date, months: int) -> str:
     m = d.year * 12 + d.month - 1 + months
-    return f"{m // 12:04d}-{m % 12 + 1:02d}"
+    return f"{date(m // 12, m % 12 + 1, 1):%B} {m // 12}"
 
 
 def resolve_relative_dates(text: str, conv_date: str | None) -> str:
-    """Append the absolute date to relative expressions: "tomorrow" -> "tomorrow (2023-05-09)".
+    """Append the absolute date to relative expressions: "tomorrow" -> "tomorrow (9 May 2023)".
 
     Deterministic (stdlib date math against the conversation's date), so temporal
     recall no longer depends on the extractor model resolving "last week" itself —
-    the measured weak spot on LoCoMo. Week/day resolve to a day, month/year to
-    their coarser period ("last month" -> "(2023-04)")."""
+    the measured weak spot on LoCoMo. Day/week resolve to a day, month/year to
+    their coarser period ("last month" -> "(April 2023)"). Spelled-out English
+    dates, not ISO: readers echo the annotation verbatim, and "(2023-06-29)" is
+    opaque to a human (and to a substring judge) where "29 June 2023" is not."""
     if not conv_date:
         return text
     base = date.fromisoformat(conv_date)
@@ -165,17 +171,17 @@ def resolve_relative_dates(text: str, conv_date: str | None) -> str:
     def resolved(m: re.Match[str]) -> str:
         if m[1]:
             days = {"yesterday": -1, "today": 0, "tomorrow": 1}[m[1].lower()]
-            return (base + timedelta(days=days)).isoformat()
+            return _day(base + timedelta(days=days))
         if m[2]:
             step = {"last": -1, "this": 0, "next": 1}[m[2].lower()]
             unit = m[3].lower()
-            if unit == "week":
-                return (base + timedelta(weeks=step)).isoformat()
+            if unit in ("week", "weekend"):  # ponytail: weekend ~ week shift, day precision
+                return _day(base + timedelta(weeks=step))
             return _month_shift(base, step) if unit == "month" else str(base.year + step)
         n = 1 if m[4].lower() in ("a", "an") else int(m[4])
         unit = m[5].lower()
         if unit in ("day", "week"):
-            return (base - timedelta(days=n * (7 if unit == "week" else 1))).isoformat()
+            return _day(base - timedelta(days=n * (7 if unit == "week" else 1)))
         return _month_shift(base, -n) if unit == "month" else str(base.year - n)
 
     return _RELATIVE.sub(lambda m: f"{m[0]} ({resolved(m)})", text)

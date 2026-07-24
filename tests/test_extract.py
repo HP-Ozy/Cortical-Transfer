@@ -311,11 +311,13 @@ def test_cli_extract_auto_inits(tmp_path, monkeypatch):
 
 def test_resolve_relative_dates():
     d = "2023-05-08"  # a Monday
-    assert resolve_relative_dates("exam tomorrow", d) == "exam tomorrow (2023-05-09)"
-    assert resolve_relative_dates("moved last week", d) == "moved last week (2023-05-01)"
-    assert resolve_relative_dates("hired 3 months ago", d) == "hired 3 months ago (2023-02)"
+    assert resolve_relative_dates("exam tomorrow", d) == "exam tomorrow (9 May 2023)"
+    assert resolve_relative_dates("moved last week", d) == "moved last week (1 May 2023)"
+    assert resolve_relative_dates("party last weekend", d) == "party last weekend (1 May 2023)"
+    assert resolve_relative_dates("hired 3 months ago", d) == "hired 3 months ago (February 2023)"
     assert resolve_relative_dates("married a year ago", d) == "married a year ago (2022)"
-    assert resolve_relative_dates("Yesterday it rained", d) == "Yesterday (2023-05-07) it rained"
-    # already resolved -> no double append; no conv date -> no-op
+    assert resolve_relative_dates("Yesterday it rained", d) == "Yesterday (7 May 2023) it rained"
+    # already resolved (either format) -> no double append; no conv date -> no-op
     assert resolve_relative_dates("exam tomorrow (2023-05-09)", d) == "exam tomorrow (2023-05-09)"
+    assert resolve_relative_dates("exam tomorrow (9 May 2023)", d) == "exam tomorrow (9 May 2023)"
     assert resolve_relative_dates("exam tomorrow", None) == "exam tomorrow"
