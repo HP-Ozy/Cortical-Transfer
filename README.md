@@ -88,7 +88,9 @@ What the matrix says:
   30b-written pack (39%) than from its own (34%).
 - Known weak spot: **temporal recall (1–2/13 in every cell)** — local models
   keep relative dates ("last week") un-resolved despite the prompt rules.
-  Tracked as the next extract improvement.
+  Since then, extract resolves them deterministically (stdlib date math against
+  the conversation date: "tomorrow" → "tomorrow (2023-05-09)"); the matrix
+  above predates the fix and is due for a re-run.
 
 Method and caveats: single LoCoMo sample, first 12 sessions, categories
 single-hop / multi-hop / temporal (adversarial needs an LLM judge, ct's judge
@@ -136,6 +138,20 @@ Claude data export works as-is (`ct extract conversations.json`).
 | `ct verify` | check SHA-256 integrity of the pack |
 | `ct redact <node-id>` | permanently erase one fact, including from Git history |
 | `ct export <file.mempack>` / `ct import` | move memory between machines/profiles |
+
+## Use it live from an agent (MCP)
+
+Instead of pasting `context.txt` by hand, let an MCP client pull memory itself:
+
+```bash
+pip install -e ".[mcp]"
+claude mcp add cortical-transfer -- ct-mcp    # or any MCP client, stdio transport
+```
+
+Three tools: `memory_profile` (the ready-to-inject context block — proactive
+push, no LLM call), `memory_search` (substring over live facts), and
+`memory_add_fact` (store a fact mid-session; each add is a Git commit).
+Profile selected with the `CT_PROFILE` env var.
 
 ## Configuration
 

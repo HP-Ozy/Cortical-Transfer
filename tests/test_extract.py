@@ -12,6 +12,7 @@ from cortical_transfer.extract.pipeline import (
     iter_conversations,
     merge_with_base,
     parse_json,
+    resolve_relative_dates,
 )
 from cortical_transfer.schema import SemanticNode
 
@@ -306,3 +307,15 @@ def test_cli_extract_auto_inits(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "initialized profile 'default'" in result.output
     assert "extracted" in result.output
+
+
+def test_resolve_relative_dates():
+    d = "2023-05-08"  # a Monday
+    assert resolve_relative_dates("exam tomorrow", d) == "exam tomorrow (2023-05-09)"
+    assert resolve_relative_dates("moved last week", d) == "moved last week (2023-05-01)"
+    assert resolve_relative_dates("hired 3 months ago", d) == "hired 3 months ago (2023-02)"
+    assert resolve_relative_dates("married a year ago", d) == "married a year ago (2022)"
+    assert resolve_relative_dates("Yesterday it rained", d) == "Yesterday (2023-05-07) it rained"
+    # already resolved -> no double append; no conv date -> no-op
+    assert resolve_relative_dates("exam tomorrow (2023-05-09)", d) == "exam tomorrow (2023-05-09)"
+    assert resolve_relative_dates("exam tomorrow", None) == "exam tomorrow"

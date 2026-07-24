@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from itertools import groupby
 from pathlib import Path
 from typing import Any
@@ -137,14 +137,59 @@ def _iso_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) and _ISO_DATE.match(value) else None
 
 
+# "tomorrow", "last week", "3 months ago", ... — not already followed by a (YYYY... date
+_RELATIVE = re.compile(
+    r"\b(?:(yesterday|today|tomorrow)"
+    r"|(last|next|this)\s+(week|month|year)"
+    r"|(\d{1,3}|an?)\s+(day|week|month|year)s?\s+ago)\b(?!\s*\(\d{4})",
+    re.IGNORECASE,
+)
+
+
+def _month_shift(d: date, months: int) -> str:
+    m = d.year * 12 + d.month - 1 + months
+    return f"{m // 12:04d}-{m % 12 + 1:02d}"
+
+
+def resolve_relative_dates(text: str, conv_date: str | None) -> str:
+    """Append the absolute date to relative expressions: "tomorrow" -> "tomorrow (2023-05-09)".
+
+    Deterministic (stdlib date math against the conversation's date), so temporal
+    recall no longer depends on the extractor model resolving "last week" itself —
+    the measured weak spot on LoCoMo. Week/day resolve to a day, month/year to
+    their coarser period ("last month" -> "(2023-04)")."""
+    if not conv_date:
+        return text
+    base = date.fromisoformat(conv_date)
+
+    def resolved(m: re.Match[str]) -> str:
+        if m[1]:
+            days = {"yesterday": -1, "today": 0, "tomorrow": 1}[m[1].lower()]
+            return (base + timedelta(days=days)).isoformat()
+        if m[2]:
+            step = {"last": -1, "this": 0, "next": 1}[m[2].lower()]
+            unit = m[3].lower()
+            if unit == "week":
+                return (base + timedelta(weeks=step)).isoformat()
+            return _month_shift(base, step) if unit == "month" else str(base.year + step)
+        n = 1 if m[4].lower() in ("a", "an") else int(m[4])
+        unit = m[5].lower()
+        if unit in ("day", "week"):
+            return (base - timedelta(days=n * (7 if unit == "week" else 1))).isoformat()
+        return _month_shift(base, -n) if unit == "month" else str(base.year - n)
+
+    return _RELATIVE.sub(lambda m: f"{m[0]} ({resolved(m)})", text)
+
+
 def _candidate_nodes(
     adapter: Adapter, conv_id: str, turns: list[Turn]
 ) -> dict[str, list[SemanticNode]]:
     transcript = "\n".join(f"[{t.turn_id}] {t.role}: {t.content}" for t in turns)
+    conv_date = _conv_date(turns)
     raw = adapter.complete(
         prompts.EXTRACT_NODES_V3.format(
             conversation_id=conv_id,
-            conversation_date=_conv_date(turns) or "unknown",
+            conversation_date=conv_date or "unknown",
             transcript=transcript[:_TRANSCRIPT_CAP],
         ),
         system=prompts.SYSTEM_V1,
@@ -161,7 +206,7 @@ def _candidate_nodes(
             try:
                 out[part].append(
                     SemanticNode(
-                        text=str(item["text"]),
+                        text=resolve_relative_dates(str(item["text"]), conv_date),
                         granularity=item.get("granularity", "episode"),
                         salience=max(0.0, min(1.0, float(item.get("salience", 0.5)))),
                         confidence=(
