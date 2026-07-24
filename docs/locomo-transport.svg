@@ -21,15 +21,15 @@
   </g>
 
   <!-- writer: qwen3-coder:30b -->
-  <rect x="150" y="202.4" width="70" height="127.6" fill="#14b8a6"/>
-  <text x="185" y="194" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">44%</text>
+  <rect x="150" y="179.2" width="70" height="150.8" fill="#14b8a6"/>
+  <text x="185" y="171" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">52%</text>
   <rect x="240" y="216.9" width="70" height="113.1" fill="#6366f1"/>
   <text x="275" y="209" text-anchor="middle" font-size="14" font-weight="bold" fill="#6366f1">39%</text>
   <text x="230" y="355" text-anchor="middle" font-size="13" fill="#8b8b8b">pack written by qwen3-coder:30b</text>
 
   <!-- writer: qwen2.5:3b -->
-  <rect x="430" y="231.4" width="70" height="98.6" fill="#14b8a6"/>
-  <text x="465" y="223" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">34%</text>
+  <rect x="430" y="202.4" width="70" height="127.6" fill="#14b8a6"/>
+  <text x="465" y="194" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">44%</text>
   <rect x="520" y="231.4" width="70" height="98.6" fill="#6366f1"/>
   <text x="555" y="223" text-anchor="middle" font-size="14" font-weight="bold" fill="#6366f1">34%</text>
   <text x="510" y="355" text-anchor="middle" font-size="13" fill="#8b8b8b">pack written by qwen2.5:3b</text>
