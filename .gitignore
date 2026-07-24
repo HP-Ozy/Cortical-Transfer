@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+examples/locomo10.json
+examples/locomo_history.jsonl
+examples/locomo_questions.raw.json

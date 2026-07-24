@@ -64,6 +64,41 @@ Reproducible with the files in [`examples/`](examples/) (temperature 0,
 substring judge). This table doubles as the regression test: if a change to
 extract/inject drops recall, it shows up here.
 
+### Cross-model transport, measured on LoCoMo
+
+The point of a MemPack is surviving a model switch. To measure that, one
+[LoCoMo](https://github.com/snap-research/locomo) conversation (12 sessions,
+253 turns) is distilled by a *writer* model and quizzed on a *reader* model —
+every writer×reader cell runs the same 38 questions:
+
+![Cross-model transport on LoCoMo](docs/locomo-transport.svg)
+
+| writer ↓ reader → | qwen3-coder:30b | qwen2.5:3b |
+|---|---|---|
+| **qwen3-coder:30b** (130 nodes) | **44%** | 39% |
+| **qwen2.5:3b** (103 nodes) | 34% | 34% |
+
+What the matrix says:
+
+- **Switching the reader costs ~5 points** (44% → 39%): a pack written once
+  transports to a much smaller model nearly intact.
+- **A weak writer costs twice that** (44% → 34% for the same reader): spend
+  your compute on `extract`, not on the receiving side.
+- **A good pack upgrades a small reader**: qwen2.5:3b answers better from the
+  30b-written pack (39%) than from its own (34%).
+- Known weak spot: **temporal recall (1–2/13 in every cell)** — local models
+  keep relative dates ("last week") un-resolved despite the prompt rules.
+  Tracked as the next extract improvement.
+
+Method and caveats: single LoCoMo sample, first 12 sessions, categories
+single-hop / multi-hop / temporal (adversarial needs an LLM judge, ct's judge
+is deterministic substring), expected answers hand-reduced to keywords.
+Absolute numbers are not comparable to published LoCoMo leaderboards (those
+use GPT-4-class judges over the full conversation); the **deltas between
+cells** are the measurement. Reproduce with
+[`examples/locomo_prep.py`](examples/locomo_prep.py) +
+[`examples/locomo_questions.json`](examples/locomo_questions.json).
+
 ## Install
 
 ```bash

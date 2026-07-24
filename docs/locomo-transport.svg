@@ -1,0 +1,38 @@
+<svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <!-- data: measured with examples/locomo_prep.py + ct eval — see README "Cross-model transport" -->
+  <text x="360" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#8b8b8b">Cross-model transport — LoCoMo recall @ 4000-token budget</text>
+
+  <!-- y axis: 0%..100%, y(v) = 330 - 2.9*v -->
+  <g font-size="12" fill="#8b8b8b">
+    <text x="52" y="334" text-anchor="end">0%</text>
+    <text x="52" y="189" text-anchor="end">50%</text>
+    <text x="52" y="44" text-anchor="end">100%</text>
+  </g>
+  <line x1="60" y1="330" x2="690" y2="330" stroke="#8b8b8b" stroke-width="1"/>
+  <line x1="60" y1="185" x2="690" y2="185" stroke="#8b8b8b" stroke-width="0.4"/>
+  <line x1="60" y1="40" x2="690" y2="40" stroke="#8b8b8b" stroke-width="0.4"/>
+
+  <!-- legend: reader model -->
+  <g font-size="12" fill="#8b8b8b">
+    <rect x="470" y="52" width="14" height="14" fill="#14b8a6"/>
+    <text x="490" y="63">read by qwen3-coder:30b</text>
+    <rect x="470" y="74" width="14" height="14" fill="#6366f1"/>
+    <text x="490" y="85">read by qwen2.5:3b</text>
+  </g>
+
+  <!-- writer: qwen3-coder:30b -->
+  <rect x="150" y="202.4" width="70" height="127.6" fill="#14b8a6"/>
+  <text x="185" y="194" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">44%</text>
+  <rect x="240" y="216.9" width="70" height="113.1" fill="#6366f1"/>
+  <text x="275" y="209" text-anchor="middle" font-size="14" font-weight="bold" fill="#6366f1">39%</text>
+  <text x="230" y="355" text-anchor="middle" font-size="13" fill="#8b8b8b">pack written by qwen3-coder:30b</text>
+
+  <!-- writer: qwen2.5:3b -->
+  <rect x="430" y="231.4" width="70" height="98.6" fill="#14b8a6"/>
+  <text x="465" y="223" text-anchor="middle" font-size="14" font-weight="bold" fill="#14b8a6">34%</text>
+  <rect x="520" y="231.4" width="70" height="98.6" fill="#6366f1"/>
+  <text x="555" y="223" text-anchor="middle" font-size="14" font-weight="bold" fill="#6366f1">34%</text>
+  <text x="510" y="355" text-anchor="middle" font-size="13" fill="#8b8b8b">pack written by qwen2.5:3b</text>
+
+  <text x="360" y="385" text-anchor="middle" font-size="12" fill="#8b8b8b">38 LoCoMo questions (single-hop / multi-hop / temporal), substring judge, temperature 0</text>
+</svg>
